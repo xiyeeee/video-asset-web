@@ -1,0 +1,187 @@
+import { NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router'
+import {
+  Bell,
+  Clapperboard,
+  FolderKanban,
+  LayoutDashboard,
+  Library,
+  Package,
+  PanelLeft,
+  ScrollText,
+} from 'lucide-react'
+import { motion } from 'motion/react'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Progress } from '@/components/ui/progress'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useCatalog, useTaskSimulation } from '@/hooks/use-catalog'
+import { analysisLabel, isActiveAnalysis } from '@/lib/labels'
+import { cn } from '@/lib/utils'
+import { useUiStore } from '@/stores/ui-store'
+
+const navigation = [
+  { to: '/', label: '工作台', icon: LayoutDashboard, end: true },
+  { to: '/projects', label: '项目管理', icon: FolderKanban, end: false },
+  { to: '/analysis', label: '视频解析', icon: Clapperboard, end: false },
+  { to: '/assets', label: '素材库', icon: Library, end: false },
+  { to: '/story', label: '剧情脚本', icon: ScrollText, end: false },
+  { to: '/export', label: '导出中心', icon: Package, end: false },
+]
+
+function preserveQuery(to: string, search: string) {
+  const current = new URLSearchParams(search)
+  const next = new URLSearchParams()
+  const project = current.get('project')
+  const episode = current.get('episode')
+  if (project) next.set('project', project)
+  if (episode) next.set('episode', episode)
+  const query = next.toString()
+  return query ? `${to}?${query}` : to
+}
+
+export function AppShell() {
+  useTaskSimulation()
+  const catalog = useCatalog().data
+  const collapsed = useUiStore((state) => state.collapsed)
+  const toggle = useUiStore((state) => state.toggle)
+  const location = useLocation()
+  const navigate = useNavigate()
+  const params = useParams()
+  const projectFromPath = catalog?.projects.find((item) => item.id === params.projectId)
+  const title = titleFor(location.pathname, projectFromPath?.name)
+  const alerts = catalog?.episodes.filter((item) => isActiveAnalysis(item.status) || item.status === 'FAILED') ?? []
+  const storage = catalog?.user
+
+  return (
+    <div className="flex h-svh overflow-hidden bg-background text-foreground">
+      <aside className={cn('flex shrink-0 flex-col border-r border-white/10 bg-sidebar transition-[width]', collapsed ? 'w-[76px]' : 'w-64')}>
+        <div className="flex items-center gap-2 px-4 py-4">
+          <div className="grid size-9 place-items-center rounded-xl bg-primary text-sm font-semibold">视</div>
+          {collapsed ? null : (
+            <div>
+              <p className="text-sm font-semibold">视频转游戏素材</p>
+              <p className="text-xs text-muted-foreground">AI 素材工作台</p>
+            </div>
+          )}
+        </div>
+        <nav className="flex flex-1 flex-col gap-1 px-3">
+          {navigation.map((item) => {
+            const Icon = item.icon
+            const link = (
+              <NavLink
+                to={preserveQuery(item.to, location.search)}
+                end={item.end}
+                className={({ isActive }) =>
+                  cn(
+                    'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-slate-300 hover:bg-white/5',
+                    isActive && 'bg-primary text-white shadow-[0_8px_24px_rgb(139_92_246/0.35)]',
+                    collapsed && 'justify-center px-0',
+                  )
+                }
+              >
+                <Icon className="size-4 shrink-0" />
+                {collapsed ? null : item.label}
+              </NavLink>
+            )
+            return collapsed ? (
+              <Tooltip key={item.to}>
+                <TooltipTrigger asChild>{link}</TooltipTrigger>
+                <TooltipContent side="right">{item.label}</TooltipContent>
+              </Tooltip>
+            ) : (
+              <div key={item.to}>{link}</div>
+            )
+          })}
+        </nav>
+        {storage ? (
+          <div className="m-3 rounded-2xl border border-white/10 bg-card/80 p-3">
+            {collapsed ? (
+              <p className="text-center text-xs text-muted-foreground">{Math.round((storage.storageUsedGb / storage.storageTotalGb) * 100)}%</p>
+            ) : (
+              <>
+                <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{storage.name}</span>
+                  <span>
+                    {storage.storageUsedGb} / {storage.storageTotalGb} GB
+                  </span>
+                </div>
+                <Progress value={(storage.storageUsedGb / storage.storageTotalGb) * 100} />
+              </>
+            )}
+          </div>
+        ) : null}
+      </aside>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex h-16 items-center justify-between gap-3 border-b border-white/10 px-4 md:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <Button type="button" size="icon-sm" variant="outline" onClick={toggle} aria-label={collapsed ? '展开导航' : '折叠导航'}>
+              <PanelLeft />
+            </Button>
+            <div className="min-w-0">
+              <h1 className="truncate text-lg font-semibold">{title.heading}</h1>
+              <p className="truncate text-xs text-muted-foreground">{title.description}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" size="icon-sm" variant="outline" aria-label="任务通知">
+                  <Bell />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-72">
+                <DropdownMenuLabel>解析任务</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {alerts.length === 0 ? <DropdownMenuItem disabled>当前没有进行中的任务</DropdownMenuItem> : null}
+                {alerts.slice(0, 6).map((episode) => {
+                  const project = catalog?.projects.find((item) => item.id === episode.projectId)
+                  return (
+                    <DropdownMenuItem
+                      key={episode.id}
+                      onClick={() => navigate(`/analysis?project=${episode.projectId}&episode=${episode.id}`)}
+                    >
+                      {project?.name} 第{episode.episodeNumber}集 · {analysisLabel[episode.status]}
+                    </DropdownMenuItem>
+                  )
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <div className="hidden text-right sm:block">
+              <p className="text-sm">{storage?.name ?? '访客'}</p>
+              <p className="text-xs text-muted-foreground">{storage?.email}</p>
+            </div>
+            <div className="grid size-9 place-items-center rounded-full bg-primary/80 text-sm">{storage?.name.slice(0, 1) ?? '访'}</div>
+          </div>
+        </header>
+        <main className="min-h-0 flex-1 overflow-auto p-4 md:p-6">
+          <motion.div key={location.pathname} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+            <Outlet />
+          </motion.div>
+        </main>
+      </div>
+    </div>
+  )
+}
+
+function titleFor(pathname: string, projectName?: string): { heading: string; description: string } {
+  if (pathname.startsWith('/projects/') && projectName) {
+    return { heading: projectName, description: '集数、解析状态和素材入口' }
+  }
+  const map: Record<string, { heading: string; description: string }> = {
+    '/': { heading: '工作台', description: '管理项目、查看解析进度与最近生成的素材' },
+    '/projects': { heading: '项目管理', description: '创建漫剧项目，上传视频并导入原著' },
+    '/analysis': { heading: '视频解析', description: '查看模拟解析进度、日志和失败重试' },
+    '/assets': { heading: '素材库', description: '按项目、集数和类型预览提取结果' },
+    '/story': { heading: '剧情脚本', description: '修正角色、编辑台词并预览剧情 JSON' },
+    '/export': { heading: '导出中心', description: '配置演示导出任务并下载元数据清单' },
+  }
+  return map[pathname] ?? { heading: '未找到页面', description: '这个地址没有对应的工作台页面' }
+}
+
