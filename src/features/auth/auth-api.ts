@@ -107,6 +107,16 @@ export const registerAccount = (payload: RegisterPayload, signal?: AbortSignal) 
 export const login = (account: string, password: string, signal?: AbortSignal) =>
   request(() => http.post('/login', { account, password }, { signal }), sessionSchema)
 
+export const authorizedRequest = async <Data>(
+  call: (authorization: string) => Promise<AxiosResponse>,
+  schema: z.ZodType<Data>,
+) => {
+  const session = useSession.getState()
+  if (!session.token) throw new AuthError('请先登录', 401, 'UNAUTHENTICATED')
+  const revision = session.revision
+  return request(() => call(`Bearer ${session.token}`), schema, revision)
+}
+
 export const getCurrentUser = (token: string, signal: AbortSignal) => {
   const revision = useSession.getState().revision
   return request(

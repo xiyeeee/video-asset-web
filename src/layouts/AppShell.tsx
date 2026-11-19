@@ -22,6 +22,7 @@ import {
 import { Progress } from '@/components/ui/progress'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession, useSignOut } from '@/features/auth/session'
+import { useProject } from '@/features/projects/use-projects'
 import { useCatalog, useTaskSimulation } from '@/hooks/use-catalog'
 import { analysisLabel, isActiveAnalysis } from '@/lib/labels'
 import { cn } from '@/lib/utils'
@@ -55,8 +56,8 @@ export function AppShell() {
   const location = useLocation()
   const navigate = useNavigate()
   const params = useParams()
-  const projectFromPath = catalog?.projects.find((item) => item.id === params.projectId)
-  const title = titleFor(location.pathname, projectFromPath?.name)
+  const projectFromPath = useProject(params.projectId)
+  const title = titleFor(location.pathname, projectFromPath.data?.name)
   const alerts = catalog?.episodes.filter((item) => isActiveAnalysis(item.status) || item.status === 'FAILED') ?? []
   const storage = catalog?.user
   const user = useSession((state) => state.user)
@@ -186,7 +187,7 @@ export function AppShell() {
 
 function titleFor(pathname: string, projectName?: string): { heading: string; description: string } {
   if (pathname.startsWith('/projects/') && projectName) {
-    return { heading: projectName, description: '集数、解析状态和素材入口' }
+    return { heading: projectName, description: '查看和编辑项目资料' }
   }
   const map: Record<string, { heading: string; description: string }> = {
     '/': { heading: '工作台', description: '管理项目、查看解析进度与最近生成的素材' },

@@ -6,13 +6,15 @@ import { EmptyState, PageSkeleton } from '@/components/common/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { NovelDialog, ProjectFormDialog, UploadDialog } from '@/features/projects/ProjectDialogs'
+import { ProjectCover } from '@/features/projects/ProjectCover'
+import { useProjectList } from '@/features/projects/use-projects'
 import { useCatalog, usePublishCatalog } from '@/hooks/use-catalog'
 import { assetTypeLabel, isActiveAnalysis } from '@/lib/labels'
-import { completedEpisodeCount } from '@/services/view'
 import type { AssetType } from '@/types/domain'
 
 export function DashboardPage() {
   const { data, isLoading, isError, refetch } = useCatalog()
+  const projects = useProjectList({ q: '', page: 1, size: 4 })
   const publish = usePublishCatalog()
   const navigate = useNavigate()
   const [creating, setCreating] = useState(false)
@@ -25,10 +27,9 @@ export function DashboardPage() {
   }
 
   const running = data.episodes.filter((item) => isActiveAnalysis(item.status))
-  const recentProjects = [...data.projects].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 4)
   const recentAssets = [...data.assets].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 6)
   const stats = [
-    { label: '项目总数', value: data.projects.length, icon: FolderUp },
+    { label: '项目总数', value: projects.data?.total ?? '—', icon: FolderUp },
     { label: '视频集数', value: data.episodes.length, icon: Clapperboard },
     { label: '生成素材', value: data.assets.length, icon: Images },
     { label: '解析完成', value: data.episodes.filter((item) => item.status === 'COMPLETED').length, icon: FileJson },
@@ -123,38 +124,41 @@ export function DashboardPage() {
         </div>
         <article className="rounded-2xl border border-white/10 bg-card p-4">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-medium">最近的项目</h2>
+            <h2 className="font-medium">我的项目</h2>
             <Button variant="ghost" size="sm" asChild>
               <Link to="/projects">全部项目</Link>
             </Button>
           </div>
-          <div className="space-y-3">
-            {recentProjects.map((project) => {
-              const total = data.episodes.filter((item) => item.projectId === project.id).length
-              const done = completedEpisodeCount(data, project.id)
-              return (
+          {projects.isError ? (
+            <EmptyState title="项目没有加载出来" description="请重新读取你的项目。" action={<Button onClick={() => void projects.refetch()}>重试</Button>} />
+          ) : projects.isLoading ? (
+            <p className="text-sm text-muted-foreground">正在读取项目…</p>
+          ) : projects.data?.items.length ? (
+            <div className="space-y-3">
+              {projects.data.items.map((project) => (
                 <button
                   key={project.id}
                   type="button"
                   className="flex w-full gap-3 rounded-xl bg-background/60 p-2 text-left hover:bg-background"
                   onClick={() => navigate(`/projects/${project.id}`)}
                 >
-                  <img src={project.coverUrl} alt="" className="size-16 rounded-lg object-cover" />
+                  <ProjectCover name={project.name} className="size-16 rounded-lg text-xl" />
                   <span className="min-w-0">
                     <span className="block truncate font-medium">{project.name}</span>
-                    <span className="block text-xs text-muted-foreground">{total} 集 · 已完成 {done} 集</span>
-                    <span className="mt-1 block text-xs text-violet-200">{done === total && total > 0 ? '解析完成' : '进行中'}</span>
+                    <span className="line-clamp-2 text-xs text-muted-foreground">{project.description || '暂无简介'}</span>
                   </span>
                 </button>
-              )
-            })}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState title="还没有项目" description="创建一个漫剧项目后，会显示在这里。" action={<Button onClick={() => setCreating(true)}>新建项目</Button>} />
+          )}
         </article>
       </section>
 
-      <ProjectFormDialog open={creating} onOpenChange={setCreating} onSaved={(id) => { publish(); navigate(`/projects/${id}`) }} />
+      <ProjectFormDialog open={creating} onOpenChange={setCreating} onSaved={(id) => navigate(`/projects/${id}`)} />
       <UploadDialog open={uploading} projects={data.projects} multiple onOpenChange={setUploading} onUploaded={(projectId, episodeId) => { publish(); navigate(`/analysis?project=${projectId}&episode=${episodeId}`) }} />
-      <NovelDialog open={importing} projects={data.projects} onOpenChange={setImporting} onImported={(id) => { publish(); navigate(`/projects/${id}`) }} />
+      <NovelDialog open={importing} projects={data.projects} onOpenChange={setImporting} onImported={() => publish()} />
     </div>
   )
 }
