@@ -33,7 +33,7 @@ export function AuthShell({
   return (
     <main className="relative min-h-svh overflow-hidden bg-[#070b18] text-foreground">
       <div className="pointer-events-none absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url("${auroraUrl}")` }} aria-hidden="true" />
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#070b18]/75 via-[#070b18]/20 to-[#070b18]/60" aria-hidden="true" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#070b18]/70 via-[#070b18]/15 to-[#070b18]/25" aria-hidden="true" />
       <div className="relative mx-auto grid min-h-svh max-w-6xl items-center gap-8 px-4 py-8 lg:grid-cols-[1.15fr_0.85fr] lg:px-10">
         <section className="hidden lg:block">
           <div className="mb-8 flex items-center gap-3">
@@ -60,7 +60,7 @@ export function AuthShell({
             })}
           </ul>
         </section>
-        <section className="mx-auto w-full max-w-md rounded-3xl border border-white/10 bg-[#151b30]/85 p-6 shadow-[0_0_80px_rgba(139,92,246,0.16)] backdrop-blur-xl sm:p-8">
+        <section className="mx-auto w-full max-w-md rounded-3xl border border-white/15 bg-[#151b30]/45 p-6 shadow-[0_0_80px_rgba(139,92,246,0.16)] backdrop-blur-xl sm:p-8">
           <div className="mb-6 flex items-center gap-2 lg:hidden">
             <span className="grid size-9 place-items-center rounded-xl bg-primary text-white"><Gamepad2 size={18} /></span>
             <span className="text-sm font-medium">视频转游戏素材平台</span>

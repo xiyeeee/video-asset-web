@@ -18,7 +18,7 @@ type LoginLocationState = { account?: string; registered?: boolean } | null
 
 export function LoginPage() {
   return (
-    <AuthShell title="欢迎回来" description="登录你的账号，继续创作游戏素材">
+    <AuthShell title="进入工作台" description="登录你的账号，继续创作游戏素材">
       <LoginForm />
     </AuthShell>
   )
