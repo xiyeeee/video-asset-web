@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Progress } from '@/components/ui/progress'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useSession, useSignOut } from '@/features/auth/session'
 import { useCatalog, useTaskSimulation } from '@/hooks/use-catalog'
 import { analysisLabel, isActiveAnalysis } from '@/lib/labels'
 import { cn } from '@/lib/utils'
@@ -58,6 +59,9 @@ export function AppShell() {
   const title = titleFor(location.pathname, projectFromPath?.name)
   const alerts = catalog?.episodes.filter((item) => isActiveAnalysis(item.status) || item.status === 'FAILED') ?? []
   const storage = catalog?.user
+  const user = useSession((state) => state.user)
+  const signOut = useSignOut()
+  const displayName = user?.displayName || user?.username || '用户'
 
   return (
     <div className="flex h-svh overflow-hidden bg-background text-foreground">
@@ -107,7 +111,7 @@ export function AppShell() {
             ) : (
               <>
                 <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
-                  <span>{storage.name}</span>
+                  <span>存储用量</span>
                   <span>
                     {storage.storageUsedGb} / {storage.storageTotalGb} GB
                   </span>
@@ -154,10 +158,20 @@ export function AppShell() {
               </DropdownMenuContent>
             </DropdownMenu>
             <div className="hidden text-right sm:block">
-              <p className="text-sm">{storage?.name ?? '访客'}</p>
-              <p className="text-xs text-muted-foreground">{storage?.email}</p>
+              <p className="text-sm">{displayName}</p>
+              <p className="text-xs text-muted-foreground">{user?.email}</p>
             </div>
-            <div className="grid size-9 place-items-center rounded-full bg-primary/80 text-sm">{storage?.name.slice(0, 1) ?? '访'}</div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" size="icon" aria-label="账号菜单" className="rounded-full">
+                  {displayName.slice(0, 1)}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>{displayName}</DropdownMenuLabel>
+                <DropdownMenuItem onClick={signOut}>退出登录</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
         <main className="min-h-0 flex-1 overflow-auto p-4 md:p-6">

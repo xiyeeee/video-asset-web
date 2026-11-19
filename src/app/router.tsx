@@ -1,5 +1,8 @@
-import { Route, Routes } from 'react-router'
-import { Link } from 'react-router'
+import { Link, Route, Routes } from 'react-router'
+import { LoginPage } from '@/features/auth/LoginPage'
+import { RegisterPage } from '@/features/auth/RegisterPage'
+import { RequireAuth } from '@/features/auth/RequireAuth'
+import { SessionRestore } from '@/features/auth/SessionRestore'
 import { AppShell } from '@/layouts/AppShell'
 import { EmptyState } from '@/components/common/EmptyState'
 import { Button } from '@/components/ui/button'
@@ -13,17 +16,24 @@ import { ExportPage } from '@/pages/export-center/ExportPage'
 
 export function AppRoutes() {
   return (
-    <Routes>
-      <Route element={<AppShell />}>
-        <Route index element={<DashboardPage />} />
-        <Route path="projects" element={<ProjectsPage />} />
-        <Route path="projects/:projectId" element={<ProjectDetailPage />} />
-        <Route path="analysis" element={<AnalysisPage />} />
-        <Route path="assets" element={<AssetLibraryPage />} />
-        <Route path="story" element={<StoryPage />} />
-        <Route path="export" element={<ExportPage />} />
-        <Route path="*" element={<EmptyState title="页面不存在" description="请从左侧导航进入工作台。" action={<Button asChild><Link to="/">回到工作台</Link></Button>} />} />
-      </Route>
-    </Routes>
+    <>
+      <SessionRestore />
+      <Routes>
+        <Route path="login" element={<LoginPage />} />
+        <Route path="register" element={<RegisterPage />} />
+        <Route element={<RequireAuth />}>
+          <Route element={<AppShell />}>
+            <Route index element={<DashboardPage />} />
+            <Route path="projects" element={<ProjectsPage />} />
+            <Route path="projects/:projectId" element={<ProjectDetailPage />} />
+            <Route path="analysis" element={<AnalysisPage />} />
+            <Route path="assets" element={<AssetLibraryPage />} />
+            <Route path="story" element={<StoryPage />} />
+            <Route path="export" element={<ExportPage />} />
+            <Route path="*" element={<EmptyState title="页面不存在" description="请从左侧导航进入工作台。" action={<Button asChild><Link to="/">回到工作台</Link></Button>} />} />
+          </Route>
+        </Route>
+      </Routes>
+    </>
   )
 }
