@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { EmptyState, PageSkeleton } from '@/components/common/EmptyState'
 import { Button } from '@/components/ui/button'
+import { EpisodeSection } from '@/features/episodes/EpisodeSection'
 import { ProjectCover } from '@/features/projects/ProjectCover'
 import { ProjectFormDialog } from '@/features/projects/ProjectDialogs'
 import { isProjectId, useProject } from '@/features/projects/use-projects'
@@ -41,7 +42,7 @@ export function ProjectDetailPage() {
         </div>
         <Button variant="outline" onClick={() => setEditing(true)}>编辑</Button>
       </section>
-      <EmptyState title="暂无集数" description="视频上传和解析还没有接入，当前只能维护项目资料。" />
+      <EpisodeSection key={project.id} projectId={project.id} />
       <ProjectFormDialog open={editing} project={project} onOpenChange={setEditing} onSaved={() => setEditing(false)} />
     </div>
   )

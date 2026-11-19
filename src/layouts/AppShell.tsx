@@ -167,8 +167,8 @@ export function AppShell() {
 }
 
 function titleFor(pathname: string, projectName?: string): { heading: string; description: string } {
-  if (pathname.startsWith('/projects/') && projectName) {
-    return { heading: projectName, description: '查看和编辑项目资料' }
+  if (pathname.startsWith('/projects/') && pathname.length > '/projects/'.length) {
+    return { heading: projectName ?? '项目详情', description: '查看项目资料，上传并预览原视频' }
   }
   const map: Record<string, { heading: string; description: string }> = {
     '/': { heading: '工作台', description: '管理项目、查看解析进度与最近生成的素材' },
