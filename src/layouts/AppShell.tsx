@@ -19,7 +19,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Progress } from '@/components/ui/progress'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession, useSignOut } from '@/features/auth/session'
 import { useProject } from '@/features/projects/use-projects'
@@ -59,7 +58,6 @@ export function AppShell() {
   const projectFromPath = useProject(params.projectId)
   const title = titleFor(location.pathname, projectFromPath.data?.name)
   const alerts = catalog?.episodes.filter((item) => isActiveAnalysis(item.status) || item.status === 'FAILED') ?? []
-  const storage = catalog?.user
   const user = useSession((state) => state.user)
   const signOut = useSignOut()
   const displayName = user?.displayName || user?.username || '用户'
@@ -105,23 +103,6 @@ export function AppShell() {
             )
           })}
         </nav>
-        {storage ? (
-          <div className="m-3 rounded-2xl border border-white/10 bg-card/80 p-3">
-            {collapsed ? (
-              <p className="text-center text-xs text-muted-foreground">{Math.round((storage.storageUsedGb / storage.storageTotalGb) * 100)}%</p>
-            ) : (
-              <>
-                <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
-                  <span>存储用量</span>
-                  <span>
-                    {storage.storageUsedGb} / {storage.storageTotalGb} GB
-                  </span>
-                </div>
-                <Progress value={(storage.storageUsedGb / storage.storageTotalGb) * 100} />
-              </>
-            )}
-          </div>
-        ) : null}
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-16 items-center justify-between gap-3 border-b border-white/10 px-4 md:px-6">

@@ -114,15 +114,7 @@ export interface ExportJob {
   fileName: string
 }
 
-export interface SessionUser {
-  name: string
-  email: string
-  storageUsedGb: number
-  storageTotalGb: number
-}
-
 export interface Catalog {
-  user: SessionUser
   projects: Project[]
   episodes: Episode[]
   characters: Character[]

@@ -28,6 +28,7 @@ export function DashboardPage() {
 
   const running = data.episodes.filter((item) => isActiveAnalysis(item.status))
   const recentAssets = [...data.assets].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 6)
+  const hasDemoProjects = data.projects.length > 0
   const stats = [
     { label: '项目总数', value: projects.data?.total ?? '—', icon: FolderUp },
     { label: '视频集数', value: data.episodes.length, icon: Clapperboard },
@@ -52,11 +53,11 @@ export function DashboardPage() {
             <Plus />
             新建项目
           </Button>
-          <Button className="h-auto flex-col gap-2 py-6" variant="secondary" onClick={() => setUploading(true)}>
+          <Button className="h-auto flex-col gap-2 py-6" variant="secondary" disabled={!hasDemoProjects} onClick={() => setUploading(true)}>
             <FolderUp />
             上传视频
           </Button>
-          <Button className="h-auto flex-col gap-2 py-6" variant="secondary" onClick={() => setImporting(true)}>
+          <Button className="h-auto flex-col gap-2 py-6" variant="secondary" disabled={!hasDemoProjects} onClick={() => setImporting(true)}>
             <FileJson />
             导入小说
           </Button>
@@ -72,7 +73,7 @@ export function DashboardPage() {
           <article className="rounded-2xl border border-white/10 bg-card p-4">
             <h2 className="mb-3 font-medium">正在执行的解析</h2>
             {running.length === 0 ? (
-              <EmptyState title="没有进行中的任务" description="上传视频或在视频解析页开始排队中的集数。" />
+              <EmptyState title="没有进行中的任务" description="正在解析的视频会显示在这里。" />
             ) : (
               <div className="space-y-3">
                 {running.map((episode) => {
@@ -103,23 +104,27 @@ export function DashboardPage() {
               <h2 className="font-medium">最近生成的素材</h2>
               <Button variant="ghost" size="sm" onClick={() => navigate('/assets')}>查看全部</Button>
             </div>
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-              {recentAssets.map((asset) => (
-                <button
-                  key={asset.id}
-                  type="button"
-                  className="overflow-hidden rounded-xl border border-white/10 bg-background text-left hover:-translate-y-0.5 hover:border-primary/50"
-                  onClick={() => navigate(`/assets?project=${asset.projectId}&episode=${asset.episodeId}&type=${asset.type as AssetType}&asset=${asset.id}`)}
-                >
-                  <img src={asset.posterUrl || asset.url} alt="" className="aspect-square w-full object-cover" />
-                  <div className="space-y-1 p-2">
-                    <p className="truncate text-sm">{asset.name}</p>
-                    <p className="text-xs text-muted-foreground">{assetTypeLabel[asset.type]}</p>
-                    <AssetBadge status={asset.status} />
-                  </div>
-                </button>
-              ))}
-            </div>
+            {recentAssets.length === 0 ? (
+              <EmptyState title="暂无生成素材" description="解析完成的素材会显示在这里。" />
+            ) : (
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+                {recentAssets.map((asset) => (
+                  <button
+                    key={asset.id}
+                    type="button"
+                    className="overflow-hidden rounded-xl border border-white/10 bg-background text-left hover:-translate-y-0.5 hover:border-primary/50"
+                    onClick={() => navigate(`/assets?project=${asset.projectId}&episode=${asset.episodeId}&type=${asset.type as AssetType}&asset=${asset.id}`)}
+                  >
+                    <img src={asset.posterUrl || asset.url} alt="" className="aspect-square w-full object-cover" />
+                    <div className="space-y-1 p-2">
+                      <p className="truncate text-sm">{asset.name}</p>
+                      <p className="text-xs text-muted-foreground">{assetTypeLabel[asset.type]}</p>
+                      <AssetBadge status={asset.status} />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </article>
         </div>
         <article className="rounded-2xl border border-white/10 bg-card p-4">

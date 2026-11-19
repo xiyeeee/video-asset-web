@@ -1,8 +1,7 @@
-import { DEMO_AUDIO_URL, DEMO_VIDEO_URL } from '@/lib/format'
+import { DEMO_AUDIO_URL } from '@/lib/format'
 import { characterArt, sceneArt } from '@/services/mock/artwork'
 import type {
   AnalysisLog,
-  AnalysisStatus,
   Asset,
   AssetStatus,
   AssetType,
@@ -47,200 +46,13 @@ function pickStatus(index: number) {
   return statusCycle[index % statusCycle.length] ?? 'READY'
 }
 
-interface CharacterSeed {
-  id: string
-  name: string
-  role: string
-  hue: number
-  summary: string
-}
-
-interface EpisodeSeed {
-  number: number
-  status: AnalysisStatus
-  progress: number
-  error?: string
-}
-
-interface ProjectSeed {
-  id: string
-  name: string
-  description: string
-  tags: string[]
-  novelName: string
-  novelText: string
-  characters: CharacterSeed[]
-  episodes: EpisodeSeed[]
-}
-
-const novels = {
-  fanpai: `苏晚把校服领口抚平，才抬头看向讲台边的陆沉。原文这一段写的是她先退开，可镜头里她没有退。她问：“如果剧本已经被人看完了，反派还算反派吗？”教室后排的林夏把小说合上，纸页里的名字和屏幕上的人第一次对上。`,
-  xiaohua: `聊天框停在一句“明天见”。第二天校门口的风把她的长发吹起来，他才发现网线对面的人就站在公告栏下面。原文只写了心跳，没有写她先叫出了他的名字。`,
-  tiegao: `她把作业本推回来，声音很轻：“跟紧可以，但别挡我的光。”他点头的时候，走廊的灯刚好一盏一盏亮起来。原文把这场戏放在雨天，成片改成了晴天的放学。`,
-}
-
-const projectSeeds: ProjectSeed[] = [
-  {
-    id: 'p-fanpai',
-    name: '反派拿捏',
-    description: '女主识破校园反派剧本，把每一集的对峙拆成可进游戏的角色、场景和台词。',
-    tags: ['校园', '恋爱', '现代'],
-    novelName: '反派拿捏.txt',
-    novelText: novels.fanpai,
-    characters: [
-      { id: 'c-suwan', name: '苏晚', role: '女主', hue: 282, summary: '识破剧本的女主，表情和立绘按集复用。' },
-      { id: 'c-luchen', name: '陆沉', role: '男主', hue: 222, summary: '表面按剧本走、实际被女主改写选择的男主。' },
-      { id: 'c-linxia', name: '林夏', role: '配角', hue: 330, summary: '拿着原著对台词的同班同学。' },
-    ],
-    episodes: [
-      { number: 1, status: 'COMPLETED', progress: 100 },
-      { number: 2, status: 'COMPLETED', progress: 100 },
-      { number: 3, status: 'COMPLETED', progress: 100 },
-      { number: 4, status: 'COMPLETED', progress: 100 },
-      { number: 5, status: 'ANALYZING', progress: 68 },
-      { number: 6, status: 'FAILED', progress: 41, error: '关键帧提取中断，可重试。' },
-      { number: 7, status: 'QUEUED', progress: 0 },
-      { number: 8, status: 'PENDING', progress: 0 },
-    ],
-  },
-  {
-    id: 'p-xiaohua',
-    name: '网恋女友是校花',
-    description: '网聊身份和校园实拍对照，整理角色外观、放学场景和对话音频。',
-    tags: ['校园', '甜宠'],
-    novelName: '网恋女友是校花.txt',
-    novelText: novels.xiaohua,
-    characters: [
-      { id: 'c-tang', name: '唐棠', role: '女主', hue: 198, summary: '公告栏前被认出来的校花。' },
-      { id: 'c-zhou', name: '周予', role: '男主', hue: 250, summary: '先在聊天框里认识她的男生。' },
-      { id: 'c-qiao', name: '乔麦', role: '配角', hue: 12, summary: '负责起哄、也负责拆穿身份的朋友。' },
-    ],
-    episodes: [
-      { number: 1, status: 'COMPLETED', progress: 100 },
-      { number: 2, status: 'COMPLETED', progress: 100 },
-      { number: 3, status: 'COMPLETED', progress: 100 },
-      { number: 4, status: 'EXTRACTING', progress: 52 },
-      { number: 5, status: 'QUEUED', progress: 0 },
-      { number: 6, status: 'PENDING', progress: 0 },
-    ],
-  },
-  {
-    id: 'p-tiegao',
-    name: '高冷校花的贴身高手',
-    description: '围绕护送与并肩走路的动作，提取角色距离、走廊场景和短句对白。',
-    tags: ['校园', '动作'],
-    novelName: '高冷校花的贴身高手.txt',
-    novelText: novels.tiegao,
-    characters: [
-      { id: 'c-shen', name: '沈清', role: '女主', hue: 262, summary: '走路不回头、台词很短的女主。' },
-      { id: 'c-pei', name: '裴川', role: '男主', hue: 205, summary: '跟在半步之外的男主。' },
-    ],
-    episodes: [
-      { number: 1, status: 'COMPLETED', progress: 100 },
-      { number: 2, status: 'COMPLETED', progress: 100 },
-      { number: 3, status: 'ANALYZING', progress: 24 },
-      { number: 4, status: 'FAILED', progress: 18, error: '音频分离失败。' },
-      { number: 5, status: 'PENDING', progress: 0 },
-    ],
-  },
-]
-
-function initialLogs(status: AnalysisStatus, error?: string): AnalysisLog[] {
-  const logs: AnalysisLog[] = [log('info', '已登记集数', daysAgo(2))]
-  if (status === 'PENDING') return logs
-  logs.unshift(log('info', '视频文件已登记', daysAgo(1)))
-  if (status === 'QUEUED' || status === 'UPLOADING') return logs
-  logs.unshift(log('info', '开始拆分镜头与台词', daysAgo(1)))
-  if (status === 'FAILED') logs.unshift(log('error', error ?? '解析失败', daysAgo(0)))
-  if (status === 'COMPLETED') logs.unshift(log('info', '素材已写入角色档案', daysAgo(0)))
-  return logs
-}
-
-let db: Catalog = createSeed()
-
-function createSeed(): Catalog {
-  const projects: Project[] = []
-  const episodes: Episode[] = []
-  const characters: Character[] = []
-  const assets: Asset[] = []
-  const storyLines: StoryLine[] = []
-
-  projectSeeds.forEach((seed, projectIndex) => {
-    const lead = seed.characters[0]
-    const project: Project = {
-      id: seed.id,
-      name: seed.name,
-      description: seed.description,
-      tags: seed.tags,
-      novelName: seed.novelName,
-      novelText: seed.novelText,
-      coverUrl: lead ? characterArt(lead.name, lead.hue, 'smile', 'bust') : sceneArt(seed.name, projectIndex),
-      createdAt: daysAgo(12 - projectIndex),
-      updatedAt: daysAgo(projectIndex),
-    }
-    projects.push(project)
-    const cast = seed.characters.map<Character>((item) => ({
-      ...item,
-      projectId: seed.id,
-      avatarUrl: characterArt(item.name, item.hue, 'neutral', 'avatar'),
-      episodeIds: [],
-    }))
-    characters.push(...cast)
-    seed.episodes.forEach((episodeSeed) => {
-      const episode = makeEpisode(project, episodeSeed)
-      episodes.push(episode)
-      if (episode.status === 'COMPLETED') fillEpisode(project, episode, cast, assets, storyLines, 'full')
-      if (episode.status === 'ANALYZING' || episode.status === 'EXTRACTING') {
-        fillEpisode(project, episode, cast, assets, storyLines, 'partial')
-      }
-      if (episode.status === 'FAILED') fillEpisode(project, episode, cast, assets, storyLines, 'failed')
-    })
-  })
-
-  const exportJobs: ExportJob[] = [
-    {
-      id: 'job-fanpai-files',
-      projectId: 'p-fanpai',
-      episodeId: 'all',
-      types: ['character', 'scene', 'audio'],
-      includeRaw: false,
-      includeJson: true,
-      format: 'unity',
-      status: 'completed',
-      progress: 100,
-      createdAt: daysAgo(1),
-      fileName: '反派拿捏-演示清单.json',
-    },
-  ]
-
-  return {
-    user: { name: '洛明希', email: 'luomingxi@studio.local', storageUsedGb: 68, storageTotalGb: 200 },
-    projects,
-    episodes,
-    characters,
-    assets,
-    storyLines,
-    exportJobs,
-  }
-}
-
-function makeEpisode(project: Project, seed: EpisodeSeed): Episode {
-  const scene = sceneNames[(seed.number - 1) % sceneNames.length] ?? '教室'
-  return {
-    id: `${project.id}-e${seed.number}`,
-    projectId: project.id,
-    episodeNumber: seed.number,
-    title: `第${seed.number}集`,
-    videoUrl: DEMO_VIDEO_URL,
-    posterUrl: sceneArt(`${project.name} · ${scene}`, seed.number),
-    duration: 120,
-    resolution: '1920×1080',
-    status: seed.status,
-    progress: seed.progress,
-    uploadedAt: seed.status === 'PENDING' ? undefined : daysAgo(6 - (seed.number % 5)),
-    errorMessage: seed.error,
-    logs: initialLogs(seed.status, seed.error),
-  }
+const db: Catalog = {
+  projects: [],
+  episodes: [],
+  characters: [],
+  assets: [],
+  storyLines: [],
+  exportJobs: [],
 }
 
 function fillEpisode(
@@ -249,20 +61,11 @@ function fillEpisode(
   cast: Character[],
   assets: Asset[],
   storyLines: StoryLine[],
-  mode: 'full' | 'partial' | 'failed',
 ) {
   const scene = sceneNames[(episode.episodeNumber - 1) % sceneNames.length] ?? '教室'
-  if (mode === 'failed') {
-    const character = cast[0]
-    if (!character) return
-    assets.push(makeCharacterAsset(project, episode, character, 'illustration', 0, 'FAILED'))
+  const subtypes = ['illustration', 'expression', 'expression', 'avatar', 'action'] as const
+  cast.forEach((character, index) => {
     rememberEpisode(character, episode.id)
-    return
-  }
-  const limitedCast = mode === 'partial' ? cast.slice(0, 1) : cast
-  limitedCast.forEach((character, index) => {
-    rememberEpisode(character, episode.id)
-    const subtypes = mode === 'partial' ? (['illustration'] as const) : (['illustration', 'expression', 'expression', 'avatar', 'action'] as const)
     subtypes.forEach((subtype, subtypeIndex) => {
       assets.push(
         makeCharacterAsset(
@@ -271,13 +74,12 @@ function fillEpisode(
           character,
           subtype,
           index * 5 + subtypeIndex + episode.episodeNumber,
-          mode === 'partial' ? 'RAW' : pickStatus(index + subtypeIndex + episode.episodeNumber),
+          pickStatus(index + subtypeIndex + episode.episodeNumber),
         ),
       )
     })
   })
-  const sceneCount = mode === 'partial' ? 1 : 2
-  for (let index = 0; index < sceneCount; index += 1) {
+  for (let index = 0; index < 2; index += 1) {
     const name = sceneNames[(episode.episodeNumber + index) % sceneNames.length] ?? scene
     assets.push({
       id: `${episode.id}-scene-${index}`,
@@ -288,7 +90,7 @@ function fillEpisode(
       name: `${name}_${episode.episodeNumber}.png`,
       sceneName: name,
       url: sceneArt(name, episode.episodeNumber + index),
-      status: mode === 'partial' ? 'PROCESSING' : pickStatus(index + 3),
+      status: pickStatus(index + 3),
       startTime: 6 + index * 18,
       endTime: 12 + index * 18,
       width: 1920,
@@ -297,9 +99,7 @@ function fillEpisode(
       createdAt: daysAgo(1),
     })
   }
-  if (mode === 'partial') return
-  const speakers = cast.length > 0 ? cast : []
-  speakers.slice(0, 3).forEach((character, index) => {
+  cast.slice(0, 3).forEach((character, index) => {
     const text = dialogueBank[(episode.episodeNumber + index) % dialogueBank.length] ?? '……'
     const audioId = `${episode.id}-audio-${index}`
     const lineId = `${episode.id}-line-${index}`
@@ -503,7 +303,7 @@ export function tick() {
         if (project && !db.assets.some((asset) => asset.episodeId === episode.id && asset.status === 'READY')) {
           db.assets = db.assets.filter((asset) => asset.episodeId !== episode.id)
           db.storyLines = db.storyLines.filter((line) => line.episodeId !== episode.id)
-          fillEpisode(project, episode, cast, db.assets, db.storyLines, 'full')
+          fillEpisode(project, episode, cast, db.assets, db.storyLines)
         }
       }
     }
@@ -580,7 +380,7 @@ export function addUploadedEpisodes(projectId: string, files: { name: string; ur
       title: file.name.replace(/\.[^.]+$/, '') || `第${nextNumber}集`,
       videoUrl: file.url,
       posterUrl: sceneArt('待解析', nextNumber),
-      duration: file.duration > 0 ? Math.round(file.duration) : DEMO_VIDEO_URL.length,
+      duration: file.duration > 0 ? Math.round(file.duration) : 0,
       resolution: '本地文件',
       status: 'UPLOADING',
       progress: 12,
@@ -591,7 +391,6 @@ export function addUploadedEpisodes(projectId: string, files: { name: string; ur
     db.episodes.push(episode)
     created.push(episode)
   })
-  db.user.storageUsedGb = Math.min(db.user.storageTotalGb, Number((db.user.storageUsedGb + files.length * 0.4).toFixed(1)))
   touch(projectId)
   return created
 }

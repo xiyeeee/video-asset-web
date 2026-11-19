@@ -75,8 +75,11 @@ export function ExportPage() {
   }, [form, projectIdFromUrl, selection.episodeId])
 
   if (isLoading) return <PageSkeleton />
-  if (isError || !data || !selection.project) {
+  if (isError || !data) {
     return <EmptyState title="导出中心加载失败" description="请重新读取演示数据。" action={<Button onClick={() => void refetch()}>重试</Button>} />
+  }
+  if (!selection.project) {
+    return <EmptyState title="暂无可导出的素材" description="有可用素材后可在这里创建导出任务。" />
   }
   const currentProjectId = projectId || selection.project.id
 

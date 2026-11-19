@@ -39,8 +39,11 @@ export function StoryPage() {
   }
 
   if (isLoading) return <PageSkeleton />
-  if (isError || !data || !selection.project) {
+  if (isError || !data) {
     return <EmptyState title="剧情脚本加载失败" description="请重新读取演示数据。" action={<Button onClick={() => void refetch()}>重试</Button>} />
+  }
+  if (!selection.project) {
+    return <EmptyState title="暂无剧情台词" description="解析出的台词会显示在这里。" />
   }
   const project = selection.project
 

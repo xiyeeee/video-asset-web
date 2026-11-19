@@ -44,8 +44,11 @@ export function AnalysisPage() {
   const publish = usePublishCatalog()
   const selection = useSelection(data)
   if (isLoading) return <PageSkeleton />
-  if (isError || !data || !selection.project) {
+  if (isError || !data) {
     return <EmptyState title="解析页加载失败" description="请重新读取演示数据。" action={<Button onClick={() => void refetch()}>重试</Button>} />
+  }
+  if (!selection.project) {
+    return <EmptyState title="暂无可解析的集数" description="上传视频后，集数会显示在这里。" />
   }
   const episode = selection.episode ?? selection.episodes.find((item) => item.status !== 'PENDING') ?? selection.episodes[0]
   const assets = episode ? assetsOfEpisode(data, episode.id) : []
