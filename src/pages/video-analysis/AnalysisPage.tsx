@@ -1,11 +1,8 @@
+import { useRef, useState } from 'react'
 import { Link } from 'react-router'
-import { toast } from 'sonner'
-import { EpisodeSwitcher } from '@/components/common/EpisodeSwitcher'
 import { EmptyState, PageSkeleton } from '@/components/common/EmptyState'
-import { AnalysisBadge } from '@/components/common/StatusBadge'
 import { VideoPlayer } from '@/components/video/VideoPlayer'
 import { Button } from '@/components/ui/button'
-import { Progress } from '@/components/ui/progress'
 import {
   Select,
   SelectContent,
@@ -13,115 +10,109 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useCatalog, usePublishCatalog } from '@/hooks/use-catalog'
-import { useSelection } from '@/hooks/use-selection'
-import { formatClock, formatTime } from '@/lib/format'
-import { assetTypeLabel, assetTypeOrder } from '@/lib/labels'
-import { retryAnalysis, startAnalysis } from '@/services/mock/catalog'
-import { assetsOfEpisode, countByType } from '@/services/view'
-import type { AnalysisStatus } from '@/types/domain'
-
-const stepLabels = ['视频上传', '内容解析', '素材提取', '完成']
-
-function stepState(status: AnalysisStatus, index: number) {
-  const activeIndex: Record<AnalysisStatus, number> = {
-    PENDING: -1,
-    UPLOADING: 0,
-    QUEUED: 0,
-    ANALYZING: 1,
-    EXTRACTING: 2,
-    COMPLETED: 4,
-    FAILED: 1,
-  }
-  if (status === 'FAILED' && index === 1) return 'failed'
-  if (index < activeIndex[status]) return 'done'
-  if (index === activeIndex[status]) return 'active'
-  return 'pending'
-}
+import { AnalysisPanel } from '@/features/analysis/AnalysisPanel'
+import { FrameGallery } from '@/features/analysis/FrameGallery'
+import { useMediaTarget } from '@/features/analysis/use-media-target'
+import { useEpisodePlayback } from '@/features/episodes/use-episodes'
+import { episodeErrorMessage } from '@/services/episodes/api'
 
 export function AnalysisPage() {
-  const { data, isLoading, isError, refetch } = useCatalog()
-  const publish = usePublishCatalog()
-  const selection = useSelection(data)
-  if (isLoading) return <PageSkeleton />
-  if (isError || !data) {
-    return <EmptyState title="解析页加载失败" description="请重新读取演示数据。" action={<Button onClick={() => void refetch()}>重试</Button>} />
+  const target = useMediaTarget()
+  if (target.projects.isLoading) return <PageSkeleton />
+  if (target.projects.isError || !target.projects.data) {
+    return <EmptyState title="项目列表加载失败" description="请检查网络后重新读取可解析的项目。" action={<Button onClick={() => void target.projects.refetch()}>重试</Button>} />
   }
-  if (!selection.project) {
-    return <EmptyState title="暂无可解析的集数" description="上传视频后，集数会显示在这里。" />
+  if (!target.projectId) {
+    return <EmptyState title="还没有可解析的项目" description="先创建一个项目并上传 MP4。" action={<Button asChild><Link to="/projects">前往项目管理</Link></Button>} />
   }
-  const episode = selection.episode ?? selection.episodes.find((item) => item.status !== 'PENDING') ?? selection.episodes[0]
-  const assets = episode ? assetsOfEpisode(data, episode.id) : []
 
+  const projectId = target.projectId
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <Select value={selection.project.id} onValueChange={selection.setProject}>
+        <Select value={projectId} onValueChange={target.setProject}>
           <SelectTrigger className="w-64"><SelectValue /></SelectTrigger>
           <SelectContent>
-            {data.projects.map((project) => <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>)}
+            {target.project && !target.projects.data.items.some((item) => item.id === projectId) ? (
+              <SelectItem value={projectId}>{target.project.name}</SelectItem>
+            ) : null}
+            {target.projects.data.items.map((project) => <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>)}
           </SelectContent>
         </Select>
-        <p className="text-sm text-muted-foreground">选择项目和集数后查看模拟解析。这里不会调用真实 AI。</p>
+        <p className="text-sm text-muted-foreground">{target.project?.description || '选择已上传的集数后开始首帧解析。'}</p>
       </div>
-      <EpisodeSwitcher episodes={selection.episodes} value={episode?.id ?? 'all'} onChange={selection.setEpisode} />
-      {!episode ? <EmptyState title="这个项目还没有集数" description="先到项目管理上传视频。" action={<Button asChild><Link to={`/projects/${selection.project.id}`}>去上传</Link></Button>} /> : null}
-      {episode ? (
-        <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-          <div className="space-y-4">
-            <VideoPlayer src={episode.videoUrl} poster={episode.posterUrl} title={`${selection.project.name} ${episode.title}`} />
-            <article className="rounded-2xl border border-white/10 bg-card p-4">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <h2 className="font-medium">解析步骤</h2>
-                <AnalysisBadge status={episode.status} />
-              </div>
-              <div className="grid grid-cols-4 gap-2">
-                {stepLabels.map((label, index) => {
-                  const state = stepState(episode.status, index)
-                  return (
-                    <div key={label} className={`rounded-xl px-2 py-3 text-center text-sm ${state === 'done' ? 'bg-emerald-500/15 text-emerald-200' : state === 'active' ? 'bg-primary/20 text-violet-100' : state === 'failed' ? 'bg-rose-500/15 text-rose-200' : 'bg-background text-muted-foreground'}`}>
-                      {label}
-                    </div>
-                  )
-                })}
-              </div>
-              <Progress className="mt-4 h-2" value={episode.progress} />
-              <p className="mt-2 text-sm text-muted-foreground">进度 {episode.progress}% {episode.errorMessage ? `· ${episode.errorMessage}` : ''}</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {episode.status === 'FAILED' ? <Button onClick={() => { retryAnalysis(episode.id); publish(); toast.success('已重新开始解析') }}>重试</Button> : null}
-                {episode.status === 'QUEUED' || episode.status === 'PENDING' ? <Button onClick={() => { startAnalysis(episode.id); publish(); toast.success('已开始模拟解析') }}>开始解析</Button> : null}
-                <Button variant="outline" asChild><Link to={`/assets?project=${selection.project.id}&episode=${episode.id}`}>前往素材库</Link></Button>
-              </div>
-            </article>
-          </div>
-          <div className="space-y-4">
-            <article className="rounded-2xl border border-white/10 bg-card p-4">
-              <h2 className="mb-3 font-medium">本集素材统计</h2>
-              <div className="grid grid-cols-2 gap-2">
-                {assetTypeOrder.map((type) => (
-                  <div key={type} className="rounded-xl bg-background px-3 py-2">
-                    <p className="text-xs text-muted-foreground">{assetTypeLabel[type]}</p>
-                    <p className="text-xl font-semibold">{assets.filter((item) => item.type === type).length}</p>
-                  </div>
-                ))}
-              </div>
-              <p className="mt-3 text-sm text-muted-foreground">项目内同类型合计 {countByType(data, selection.project.id, 'all')} 项。角色跨集共用同一档案。</p>
-            </article>
-            <article className="max-h-[420px] overflow-auto rounded-2xl border border-white/10 bg-card p-4">
-              <h2 className="mb-3 font-medium">解析日志</h2>
-              <ul className="space-y-2">
-                {episode.logs.map((item) => (
-                  <li key={item.id} className="rounded-xl bg-background px-3 py-2 text-sm">
-                    <span className="text-muted-foreground">{formatTime(item.time)}</span>
-                    <span className={item.level === 'error' ? 'text-rose-300' : ''}> · {item.message}</span>
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-3 text-xs text-muted-foreground">时长显示为叙事时长 {formatClock(episode.duration)}，播放器使用可预览的演示文件。</p>
-            </article>
-          </div>
+      {target.episodes.isLoading ? <p className="text-sm text-muted-foreground">正在读取集数…</p> : null}
+      {target.episodes.isError ? (
+        <EmptyState title="集数加载失败" description={episodeErrorMessage(target.episodes.error)} action={<Button onClick={() => void target.episodes.refetch()}>重试</Button>} />
+      ) : null}
+      {target.episodes.data && target.episodes.data.items.length === 0 ? (
+        <EmptyState title="这个项目还没有集数" description="先上传一份 MP4，再回来解析。" action={<Button asChild><Link to={`/projects/${projectId}`}>去上传</Link></Button>} />
+      ) : null}
+      {target.episodes.data && target.episodes.data.items.length > 0 ? (
+        <div className="flex gap-2 overflow-x-auto">
+          {target.episodes.data.items.map((episode) => (
+            <button
+              key={episode.id}
+              type="button"
+              className={`shrink-0 rounded-full border px-3 py-1.5 text-sm ${episode.id === target.episodeId ? 'border-primary bg-primary text-primary-foreground' : 'border-white/10 bg-card'}`}
+              onClick={() => target.setEpisode(episode.id)}
+            >
+              第 {episode.episodeNumber} 集
+            </button>
+          ))}
         </div>
       ) : null}
+      {target.episodeId ? <EpisodeAnalysis projectId={projectId} episodeId={target.episodeId} title={target.episode?.title ?? '原视频'} /> : null}
     </div>
+  )
+}
+
+function EpisodeAnalysis({ projectId, episodeId, title }: { projectId: string; episodeId: string; title: string }) {
+  return (
+    <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+      <div className="space-y-4">
+        <OriginalPreview projectId={projectId} episodeId={episodeId} title={title} />
+        <AnalysisPanel projectId={projectId} episodeId={episodeId} />
+      </div>
+      <div className="space-y-3">
+        <h2 className="font-medium">首帧分镜</h2>
+        <FrameGallery projectId={projectId} episodeId={episodeId} />
+      </div>
+    </div>
+  )
+}
+
+function OriginalPreview({ projectId, episodeId, title }: { projectId: string; episodeId: string; title: string }) {
+  const playback = useEpisodePlayback(projectId, episodeId)
+  const [failedUrl, setFailedUrl] = useState<string | null>(null)
+  const refreshing = useRef(false)
+  const url = playback.data?.url
+  if (playback.isPending) return <p className="text-sm text-muted-foreground">正在获取原视频…</p>
+  if (playback.isError || !url || failedUrl === url) {
+    return (
+      <EmptyState
+        title="暂时无法预览原视频"
+        description={playback.isError ? episodeErrorMessage(playback.error) : '播放地址已失效，请重新获取。'}
+        action={<Button onClick={() => { setFailedUrl(null); void playback.refetch() }}>重新获取</Button>}
+      />
+    )
+  }
+  return (
+    <VideoPlayer
+      src={url}
+      type="video/mp4"
+      title={title}
+      caption="正在播放已保存的原视频。"
+      onError={() => {
+        if (refreshing.current) {
+          setFailedUrl(url)
+          return
+        }
+        refreshing.current = true
+        void playback.refetch().finally(() => {
+          refreshing.current = false
+        })
+      }}
+    />
   )
 }

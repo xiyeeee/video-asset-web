@@ -173,8 +173,8 @@ function titleFor(pathname: string, projectName?: string): { heading: string; de
   const map: Record<string, { heading: string; description: string }> = {
     '/': { heading: '工作台', description: '管理项目、查看解析进度与最近生成的素材' },
     '/projects': { heading: '项目管理', description: '创建漫剧项目，上传视频并导入原著' },
-    '/analysis': { heading: '视频解析', description: '查看模拟解析进度、日志和失败重试' },
-    '/assets': { heading: '素材库', description: '按项目、集数和类型预览提取结果' },
+    '/analysis': { heading: '视频解析', description: '查看首帧解析状态，并在失败后重试' },
+    '/assets': { heading: '素材库', description: '按集预览已提取的首帧分镜' },
     '/story': { heading: '剧情脚本', description: '修正角色、编辑台词并预览剧情 JSON' },
     '/export': { heading: '导出中心', description: '配置演示导出任务并下载元数据清单' },
   }

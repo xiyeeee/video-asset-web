@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
+import { Link } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { Upload } from 'lucide-react'
 import { EmptyState } from '@/components/common/EmptyState'
@@ -215,21 +216,26 @@ function EpisodePreview({ projectId, episode }: { projectId: string; episode: Ep
     : '正在播放已保存的原视频。'
 
   return (
-    <VideoPlayer
-      src={url}
-      type={episode.contentType}
-      title={episode.title}
-      caption={caption}
-      onError={() => {
-        if (refreshing.current) {
-          setFailedUrl(url)
-          return
-        }
-        refreshing.current = true
-        void playback.refetch().finally(() => {
-          refreshing.current = false
-        })
-      }}
-    />
+    <div className="space-y-3">
+      <VideoPlayer
+        src={url}
+        type={episode.contentType}
+        title={episode.title}
+        caption={caption}
+        onError={() => {
+          if (refreshing.current) {
+            setFailedUrl(url)
+            return
+          }
+          refreshing.current = true
+          void playback.refetch().finally(() => {
+            refreshing.current = false
+          })
+        }}
+      />
+      <Button type="button" variant="outline" asChild>
+        <Link to={`/analysis?project=${projectId}&episode=${episode.id}`}>解析这一集</Link>
+      </Button>
+    </div>
   )
 }

@@ -12,9 +12,9 @@ export { EPISODE_PAGE_SIZE }
 
 const numericId = (value: string | undefined) => Boolean(value && /^[1-9]\d*$/.test(value))
 
-export const useEpisodeList = (projectId: string, page: number) => useQuery({
-  queryKey: episodeQueryKey({ projectId, page, size: EPISODE_PAGE_SIZE }),
-  queryFn: ({ signal }) => listEpisodes({ projectId, page, size: EPISODE_PAGE_SIZE }, signal),
+export const useEpisodeList = (projectId: string, page: number, size = EPISODE_PAGE_SIZE) => useQuery({
+  queryKey: episodeQueryKey({ projectId, page, size }),
+  queryFn: ({ signal }) => listEpisodes({ projectId, page, size }, signal),
   enabled: isProjectId(projectId),
   placeholderData: (previous) => (previous?.items[0]?.projectId === projectId ? previous : undefined),
 })
