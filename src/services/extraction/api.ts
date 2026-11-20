@@ -396,6 +396,10 @@ export const extractionFailureText = (code: string | null) => {
   if (code === 'DIALOGUE_AUDIO_PREP_FAILED' || code === 'DIALOGUE_MODEL_UNAVAILABLE' || code === 'DIALOGUE_TRANSCRIPTION_FAILED' || code === 'DIALOGUE_EXTRACTION_TIMEOUT' || code === 'DIALOGUE_WRITE_FAILED') {
     return '对白处理失败，可以单独重试。'
   }
+  if (code === 'BACKGROUND_MANIFEST_INVALID' || code === 'BACKGROUND_SHOT_MANIFEST_INVALID') return '背景清单校验失败，可以单独重试背景。'
+  if (code === 'BACKGROUND_SHOTS_FAILED' || code === 'BACKGROUND_CANDIDATE_FAILED' || code === 'BACKGROUND_EXTRACTION_TIMEOUT' || code === 'BACKGROUND_WRITE_FAILED') {
+    return '背景处理失败，可以单独重试。'
+  }
   if (code === 'QUEUE_UNAVAILABLE' || code === 'PYTHON_TASK_LOST' || code === 'CHARACTER_TASK_TIMEOUT' || code === 'EXTRACTION_TASK_TIMEOUT') {
     return '任务已超过恢复期限，可以重试。'
   }

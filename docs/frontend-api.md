@@ -14,5 +14,6 @@
 | 人物图片 | 优先 `GET /api/media/episodes/{episodeId}/assets?type=CHARACTER`。404 时回退旧人物分页 |
 | 音频 | `GET /api/media/episodes/{episodeId}/assets?type=AUDIO`，当前类型为 `ORIGINAL_TRACK` |
 | `GET /api/media/episodes/{episodeId}/assets?type=DIALOGUE` | 对白文本和时间。超过一页时用第一条的 `sourceTaskId` 固定后续页。`expiresInSeconds` 为 0 |
+| `GET /api/media/episodes/{episodeId}/assets?type=BACKGROUND` | 按镜头返回背景候选。超过一页时用第一条的 `sourceTaskId` 固定后续页。签名图片过期后重新获取 |
 
 进度只在接口返回 `100` 时显示百分之百。签名地址只用于当次预览，不写入本地存储或日志。

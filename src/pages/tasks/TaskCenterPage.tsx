@@ -111,6 +111,7 @@ function TaskDetail({
   if (!task) return <EmptyState title="选择一个任务" description="任务详情会显示每种素材的真实阶段。没有百分比时，不会自行估算进度。" />
   const current = detail.data ?? task
   let assetTab = 'characters'
+  if (current.types.includes('BACKGROUND')) assetTab = 'background'
   if (current.types.includes('DIALOGUE')) assetTab = 'dialogue'
   if (current.types.includes('SHOT')) assetTab = 'shots'
   return (
