@@ -44,9 +44,10 @@ export const projectQueryKey = (query: ProjectQuery) => ['projects', query] as c
 
 export const projectDetailKey = (projectId: string) => ['project', projectId] as const
 
-export const listProjects = (query: ProjectQuery) =>
+export const listProjects = (query: ProjectQuery, signal?: AbortSignal) =>
   authorizedRequest(
     (authorization) => http.get('/projects', {
+      signal,
       headers: { Authorization: authorization },
       params: { q: query.q, page: query.page, size: query.size },
     }),

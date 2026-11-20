@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { Link } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { Upload } from 'lucide-react'
+import { Link } from 'react-router'
 import { EmptyState } from '@/components/common/EmptyState'
 import { VideoPlayer } from '@/components/video/VideoPlayer'
-import { CharacterExtractionPanel } from '@/features/characters/CharacterExtractionPanel'
+import { ExtractOptions } from '@/features/extraction/ExtractOptions'
+import { useExtractionCapabilities } from '@/features/extraction/use-extraction'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { AuthError, isCancelled } from '@/features/auth/auth-api'
@@ -14,9 +15,14 @@ import {
   episodeErrorMessage,
   episodeListPrefix,
   MAX_VIDEO_BYTES,
-  uploadEpisode,
   type EpisodeSummary,
 } from '@/services/episodes/api'
+import {
+  createExtractionTask,
+  extractionBoardKey,
+  uploadAndExtract,
+  type ExtractType,
+} from '@/services/extraction/api'
 import { EPISODE_PAGE_SIZE, useEpisodeList, useEpisodePlayback } from './use-episodes'
 
 const formatBytes = (bytes: number) => {
@@ -27,6 +33,18 @@ const formatBytes = (bytes: number) => {
 
 const statusLabel = (status: string) => (status === 'PENDING' ? '待解析' : status)
 
+type UploadPhase = 'idle' | 'uploading' | 'uploaded' | 'upload-failed' | 'creating-task' | 'task-created' | 'task-failed'
+
+const phaseLabel: Record<UploadPhase, string> = {
+  idle: '待上传',
+  uploading: '上传中',
+  uploaded: '上传成功',
+  'upload-failed': '上传失败',
+  'creating-task': '创建任务中',
+  'task-created': '任务创建成功',
+  'task-failed': '任务创建失败',
+}
+
 export function EpisodeSection({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient()
   const [page, setPage] = useState(1)
@@ -35,8 +53,14 @@ export function EpisodeSection({ projectId }: { projectId: string }) {
   const [uploadKey, setUploadKey] = useState<string | null>(null)
   const [progress, setProgress] = useState<number | null>(null)
   const [uploadError, setUploadError] = useState<unknown>(null)
+  const [taskError, setTaskError] = useState<unknown>(null)
+  const [taskId, setTaskId] = useState<string | null>(null)
+  const [savedEpisode, setSavedEpisode] = useState<EpisodeSummary | null>(null)
+  const [phase, setPhase] = useState<UploadPhase>('idle')
+  const [autoExtract, setAutoExtract] = useState(true)
+  const [selectedTypes, setSelectedTypes] = useState<ExtractType[] | null>(null)
   const [localMessage, setLocalMessage] = useState('')
-  const [uploading, setUploading] = useState(false)
+  const capabilities = useExtractionCapabilities()
   const uploadingRef = useRef(false)
   const abortRef = useRef<AbortController | null>(null)
 
@@ -57,11 +81,43 @@ export function EpisodeSection({ projectId }: { projectId: string }) {
     setUploadKey(crypto.randomUUID())
     setProgress(null)
     setUploadError(null)
+    setTaskError(null)
+    setTaskId(null)
+    setSavedEpisode(null)
+    setPhase('idle')
     setLocalMessage('')
   }
 
+  const supported = (capabilities.data ?? []).filter((item) => item.supported).map((item) => item.type)
+  const chosen = selectedTypes ?? supported
+  const busy = phase === 'uploading' || phase === 'creating-task'
+
   const submit = async () => {
-    if (!file || !uploadKey || uploadingRef.current) return
+    if (uploadingRef.current) return
+    if (autoExtract && chosen.length === 0) {
+      setLocalMessage('请至少选择一种可提取的素材类型。')
+      return
+    }
+    if (phase === 'task-failed' && savedEpisode) {
+      uploadingRef.current = true
+      setPhase('creating-task')
+      setTaskError(null)
+      try {
+        const created = await createExtractionTask(projectId, savedEpisode.id, chosen)
+        setTaskId(created.id)
+        setPhase('task-created')
+        await queryClient.invalidateQueries({ queryKey: extractionBoardKey })
+      } catch (error) {
+        if (!isCancelled(error)) {
+          setTaskError(error)
+          setPhase('task-failed')
+        }
+      } finally {
+        uploadingRef.current = false
+      }
+      return
+    }
+    if (!file || !uploadKey) return
     if (!file.name.toLowerCase().endsWith('.mp4')) {
       setLocalMessage('请检查文件是否为 MP4。')
       return
@@ -73,27 +129,48 @@ export function EpisodeSection({ projectId }: { projectId: string }) {
     const controller = new AbortController()
     abortRef.current = controller
     uploadingRef.current = true
-    setUploading(true)
+    setPhase('uploading')
     setUploadError(null)
+    setTaskError(null)
     setLocalMessage('')
     setProgress(0)
     try {
-      const result = await uploadEpisode(projectId, file, uploadKey, setProgress, controller.signal)
+      const result = await uploadAndExtract({
+        projectId,
+        file,
+        idempotencyKey: uploadKey,
+        autoExtract,
+        extractTypes: chosen,
+        onProgress: setProgress,
+        onUploaded: () => setPhase('creating-task'),
+        signal: controller.signal,
+      })
       if (result.created) {
         const last = Math.max(1, Math.ceil(((list.data?.total ?? 0) + 1) / EPISODE_PAGE_SIZE))
         setPage(last)
       }
       setPicked(result.episode)
+      setSavedEpisode(result.episode)
       setFile(null)
       setUploadKey(null)
       setProgress(null)
       await queryClient.invalidateQueries({ queryKey: episodeListPrefix(projectId) })
+      if (result.taskError) {
+        setTaskError(result.taskError)
+        setPhase('task-failed')
+      } else if (result.autoExtract) {
+        setTaskId(result.taskId)
+        setPhase('task-created')
+        await queryClient.invalidateQueries({ queryKey: extractionBoardKey })
+      } else {
+        setPhase('uploaded')
+      }
     } catch (error) {
       if (isCancelled(error)) return
       setUploadError(error)
+      setPhase('upload-failed')
     } finally {
       uploadingRef.current = false
-      setUploading(false)
     }
   }
 
@@ -106,19 +183,35 @@ export function EpisodeSection({ projectId }: { projectId: string }) {
       <section className="space-y-3 rounded-2xl border border-white/10 bg-card p-4">
         <div className="flex items-center justify-between gap-3">
           <h3 className="font-medium">集数</h3>
-          <Button type="button" size="sm" variant="outline" disabled={uploading} asChild>
+          <Button type="button" size="sm" variant="outline" disabled={busy} asChild>
             <label>
               <Upload />
               选择 MP4
-              <input className="sr-only" type="file" accept=".mp4,video/mp4" disabled={uploading} onChange={pickFile} />
+              <input className="sr-only" type="file" accept=".mp4,video/mp4" disabled={busy} onChange={pickFile} />
             </label>
           </Button>
         </div>
-        {file ? (
+        <ExtractOptions
+          capabilities={capabilities.data}
+          loading={capabilities.isPending}
+          error={capabilities.error}
+          onRetry={() => void capabilities.refetch()}
+          autoExtract={autoExtract}
+          onAutoExtract={setAutoExtract}
+          selected={chosen}
+          onSelected={setSelectedTypes}
+          disabled={busy}
+        />
+        {file || phase !== 'idle' ? (
           <div className="space-y-2 rounded-xl border border-white/10 bg-background/40 p-3">
-            <p className="truncate text-sm">{file.name}</p>
-            <p className="text-xs text-muted-foreground">{formatBytes(file.size)}</p>
-            {uploading ? (
+            <p className="text-xs text-violet-200">{phaseLabel[phase]}</p>
+            {file ? (
+              <>
+                <p className="truncate text-sm">{file.name}</p>
+                <p className="text-xs text-muted-foreground">{formatBytes(file.size)}</p>
+              </>
+            ) : null}
+            {phase === 'uploading' ? (
               <>
                 <Progress value={Math.round((progress ?? 0) * 100)} />
                 <p className="text-xs text-violet-200">
@@ -127,13 +220,23 @@ export function EpisodeSection({ projectId }: { projectId: string }) {
               </>
             ) : null}
             {message ? <p className="text-xs text-rose-300">{message}</p> : null}
-            <div className="flex gap-2">
-              <Button type="button" size="sm" disabled={uploading || sameKeyBlocked} onClick={() => void submit()}>
-                {uploading ? '正在上传' : '上传'}
-              </Button>
+            {taskError ? <p className="text-xs text-rose-300">{taskError instanceof AuthError ? taskError.message : '任务创建失败，视频已保留，可以重试创建任务。'}</p> : null}
+            {phase === 'uploaded' ? <p className="text-xs text-muted-foreground">视频已保存。未创建提取任务。</p> : null}
+            {phase === 'task-created' && taskId ? <p className="text-xs text-muted-foreground">任务 {taskId} 已创建，提取会在后台继续。</p> : null}
+            <div className="flex flex-wrap gap-2">
+              {(phase === 'task-failed' || (file && !(uploadError && canRetryEpisodeUpload(uploadError)))) ? (
+                <Button type="button" size="sm" disabled={busy || sameKeyBlocked || (autoExtract && (capabilities.isPending || chosen.length === 0))} onClick={() => void submit()}>
+                  {phase === 'creating-task' ? '正在创建任务' : phase === 'uploading' ? '正在上传' : phase === 'task-failed' ? '重试创建任务' : '确认上传'}
+                </Button>
+              ) : null}
               {uploadError && canRetryEpisodeUpload(uploadError) ? (
-                <Button type="button" size="sm" variant="outline" disabled={uploading} onClick={() => void submit()}>
+                <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void submit()}>
                   使用原文件重试
+                </Button>
+              ) : null}
+              {phase === 'task-created' ? (
+                <Button type="button" size="sm" variant="outline" asChild>
+                  <Link to="/tasks">前往任务中心</Link>
                 </Button>
               ) : null}
             </div>
@@ -236,15 +339,17 @@ function EpisodePreview({ projectId, episode }: { projectId: string; episode: Ep
   return (
     <div className="space-y-3">
       {preview}
-      <Button type="button" variant="outline" asChild>
-        <Link to={`/analysis?project=${projectId}&episode=${episode.id}`}>解析这一集</Link>
-      </Button>
-      <CharacterExtractionPanel
-        key={episode.id}
-        projectId={projectId}
-        episodeId={episode.id}
-        libraryHref={`/assets?project=${projectId}&episode=${episode.id}&tab=characters`}
-      />
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" variant="outline" asChild>
+          <Link to={`/analysis?project=${projectId}&episode=${episode.id}`}>解析这一集</Link>
+        </Button>
+        <Button type="button" variant="outline" asChild>
+          <Link to={`/assets?project=${projectId}&episode=${episode.id}`}>查看素材</Link>
+        </Button>
+        <Button type="button" variant="outline" asChild>
+          <Link to="/tasks">任务中心</Link>
+        </Button>
+      </div>
     </div>
   )
 }

@@ -13,6 +13,7 @@ import { AnalysisPage } from '@/pages/video-analysis/AnalysisPage'
 import { AssetLibraryPage } from '@/pages/asset-library/AssetLibraryPage'
 import { StoryPage } from '@/pages/story-editor/StoryPage'
 import { ExportPage } from '@/pages/export-center/ExportPage'
+import { TaskCenterPage } from '@/pages/tasks/TaskCenterPage'
 
 export function AppRoutes() {
   return (
@@ -27,6 +28,7 @@ export function AppRoutes() {
             <Route path="projects" element={<ProjectsPage />} />
             <Route path="projects/:projectId" element={<ProjectDetailPage />} />
             <Route path="analysis" element={<AnalysisPage />} />
+            <Route path="tasks" element={<TaskCenterPage />} />
             <Route path="assets" element={<AssetLibraryPage />} />
             <Route path="story" element={<StoryPage />} />
             <Route path="export" element={<ExportPage />} />

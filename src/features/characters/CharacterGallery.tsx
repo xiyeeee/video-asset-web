@@ -60,10 +60,12 @@ export function CharacterGallery({
   projectId,
   episodeId,
   onSeek,
+  episodeLabel,
 }: {
   projectId: string
   episodeId: string
-  onSeek: (timestampMs: number) => void
+  onSeek?: (timestampMs: number) => void
+  episodeLabel?: string
 }) {
   const task = useCharacterTask(projectId, episodeId)
   const [page, setPage] = useState(1)
@@ -107,6 +109,15 @@ export function CharacterGallery({
       />
     )
   }
+  if (assets.data.items.length === 0 && task.isError) {
+    return (
+      <EmptyState
+        title="人物素材状态读取失败"
+        description={characterErrorMessage(task.error)}
+        action={<Button onClick={() => void task.refetch()}>重新获取</Button>}
+      />
+    )
+  }
   if (assets.data.items.length === 0) {
     if (extracting) {
       return <EmptyState title="正在提取人物素材" description="完成后，这一集会出现可预览的透明图片。" />
@@ -123,7 +134,7 @@ export function CharacterGallery({
   return (
     <div className="flex flex-col xl:h-full xl:min-h-0">
       <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
-        <h2 className="font-medium">人物素材</h2>
+        <h2 className="font-medium">人物素材{assets.data ? ` · ${assets.data.total} 张` : ''}</h2>
         {assets.data && pageCount > 1 ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <span>第 {page} / {pageCount} 页</span>
@@ -155,14 +166,19 @@ export function CharacterGallery({
                 </div>
               )}
               <div className="space-y-2 p-3">
-                <button
-                  type="button"
-                  className="text-sm text-violet-100 underline-offset-2 hover:underline"
-                  onClick={() => onSeek(asset.timestampMs)}
-                >
-                  来源时间 {sourceTime}
-                </button>
-                <p className="text-xs text-muted-foreground">帧内第 {asset.frameCharacterNumber} 人 · {formatBytes(asset.sizeBytes)}</p>
+                {onSeek ? (
+                  <button
+                    type="button"
+                    className="text-sm text-violet-100 underline-offset-2 hover:underline"
+                    onClick={() => onSeek(asset.timestampMs)}
+                  >
+                    来源时间 {sourceTime}
+                  </button>
+                ) : (
+                  <p className="text-sm text-violet-100">出现时间 {sourceTime}</p>
+                )}
+                <p className="text-xs text-muted-foreground">{episodeLabel ? `${episodeLabel} · ` : ''}来源帧 {asset.sourceFrame}</p>
+                <p className="text-xs text-muted-foreground">名称未识别 · 帧内第 {asset.frameCharacterNumber} 人 · {formatBytes(asset.sizeBytes)} · 待归组</p>
                 <Button type="button" size="sm" variant="outline" onClick={() => download(asset)}>下载</Button>
               </div>
             </article>

@@ -9,20 +9,42 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { FrameGallery } from '@/features/analysis/FrameGallery'
+import { AudioAssets } from '@/features/assets/AudioAssets'
+import { BackgroundAssets } from '@/features/assets/BackgroundAssets'
+import { CharacterAssets } from '@/features/assets/CharacterAssets'
+import { DialogueAssets } from '@/features/assets/DialogueAssets'
+import { ShotAssets } from '@/features/assets/ShotAssets'
+import { StoryAssets } from '@/features/assets/StoryAssets'
 import { useMediaTarget } from '@/features/analysis/use-media-target'
-import { CharacterWorkspace } from '@/features/characters/CharacterWorkspace'
 import { episodeErrorMessage } from '@/services/episodes/api'
+
+const assetTabs = ['shots', 'characters', 'dialogue', 'background', 'audio', 'story'] as const
+
+type AssetTab = (typeof assetTabs)[number]
+
+const tabLabel: Record<AssetTab, string> = {
+  shots: '分镜',
+  characters: '人物',
+  dialogue: '对话',
+  background: '背景',
+  audio: '音频',
+  story: '剧情',
+}
+
+const resolveTab = (value: string | null): AssetTab => {
+  if (value === 'frames') return 'shots'
+  return assetTabs.find((item) => item === value) ?? 'shots'
+}
 
 export function AssetLibraryPage() {
   const target = useMediaTarget()
   const [params, setParams] = useSearchParams()
-  const tab = params.get('tab') === 'characters' ? 'characters' : 'frames'
+  const tab = resolveTab(params.get('tab'))
   const setTab = (value: string) => {
     setParams((current) => {
       const next = new URLSearchParams(current)
-      if (value === 'characters') next.set('tab', 'characters')
-      else next.delete('tab')
+      if (value === 'shots') next.delete('tab')
+      else next.set('tab', value)
       return next
     }, { replace: true })
   }
@@ -31,10 +53,11 @@ export function AssetLibraryPage() {
     return <EmptyState title="素材库加载失败" description="请检查网络后重新读取项目。" action={<Button onClick={() => void target.projects.refetch()}>重试</Button>} />
   }
   if (!target.projectId) {
-    return <EmptyState title="还没有可查看的分镜" description="创建项目并完成首帧解析后，图片会显示在这里。" action={<Button asChild><Link to="/projects">前往项目管理</Link></Button>} />
+    return <EmptyState title="还没有可查看的素材" description="创建项目并上传视频后，提取结果会显示在这里。" action={<Button asChild><Link to="/projects">前往项目管理</Link></Button>} />
   }
 
   const projectId = target.projectId
+  const episodeLabel = target.episode ? `第 ${target.episode.episodeNumber} 集` : undefined
   return (
     <div className="flex flex-col gap-4 xl:h-[calc(100svh-7rem)] xl:min-h-0">
       <section className="flex flex-wrap items-center gap-4 rounded-2xl border border-white/10 bg-card p-4">
@@ -48,11 +71,9 @@ export function AssetLibraryPage() {
               {target.projects.data.items.map((project) => <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>)}
             </SelectContent>
           </Select>
-          <p className="mt-1 text-sm text-muted-foreground">{target.project?.description || '按集查看已提取的首帧和人物素材。'}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{target.project?.description || '按集查看已经提取的素材。'}</p>
         </div>
-        {target.episodeId ? (
-          <Button variant="outline" asChild><Link to={`/analysis?project=${projectId}&episode=${target.episodeId}`}>查看解析</Link></Button>
-        ) : null}
+        <Button variant="outline" asChild><Link to="/tasks">任务中心</Link></Button>
       </section>
       {target.episodes.isLoading ? <p className="text-sm text-muted-foreground">正在读取集数…</p> : null}
       {target.episodes.isError ? (
@@ -73,26 +94,21 @@ export function AssetLibraryPage() {
         </div>
       ) : null}
       {target.episodes.data && target.episodes.data.items.length === 0 ? (
-        <EmptyState title="这个项目还没有集数" description="上传视频并完成解析后，才能看到分镜。" action={<Button asChild><Link to={`/projects/${projectId}`}>去上传</Link></Button>} />
+        <EmptyState title="这个项目还没有集数" description="上传视频后，提取结果会按类型出现在这里。" action={<Button asChild><Link to={`/projects/${projectId}`}>去上传</Link></Button>} />
       ) : null}
       {target.episodeId ? (
         <Tabs value={tab} onValueChange={setTab} className="xl:min-h-0 xl:flex-1">
-          <TabsList>
-            <TabsTrigger value="frames">分镜</TabsTrigger>
-            <TabsTrigger value="characters">人物</TabsTrigger>
+          <TabsList className="max-w-full overflow-x-auto">
+            {assetTabs.map((item) => <TabsTrigger key={item} value={item}>{tabLabel[item]}</TabsTrigger>)}
           </TabsList>
-          <TabsContent value="frames" className="xl:min-h-0 xl:flex-1 xl:overflow-auto">
-            <FrameGallery projectId={projectId} episodeId={target.episodeId} />
-          </TabsContent>
+          <TabsContent value="shots" className="xl:min-h-0 xl:flex-1 xl:overflow-auto"><ShotAssets projectId={projectId} episodeId={target.episodeId} /></TabsContent>
           <TabsContent value="characters" className="xl:min-h-0 xl:flex-1 xl:overflow-hidden">
-            <CharacterWorkspace
-              key={`${projectId}:${target.episodeId}`}
-              projectId={projectId}
-              episodeId={target.episodeId}
-              title={target.episode?.title ?? '原视频'}
-              contentType={target.episode?.contentType}
-            />
+            <CharacterAssets projectId={projectId} episodeId={target.episodeId} episodeLabel={episodeLabel} />
           </TabsContent>
+          <TabsContent value="dialogue"><DialogueAssets /></TabsContent>
+          <TabsContent value="background"><BackgroundAssets /></TabsContent>
+          <TabsContent value="audio"><AudioAssets /></TabsContent>
+          <TabsContent value="story"><StoryAssets /></TabsContent>
         </Tabs>
       ) : null}
     </div>
