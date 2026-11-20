@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Upload } from 'lucide-react'
 import { EmptyState } from '@/components/common/EmptyState'
 import { VideoPlayer } from '@/components/video/VideoPlayer'
+import { CharacterExtractionPanel } from '@/features/characters/CharacterExtractionPanel'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { AuthError, isCancelled } from '@/features/auth/auth-api'
@@ -198,25 +199,21 @@ function EpisodePreview({ projectId, episode }: { projectId: string; episode: Ep
   if (!episode) {
     return <EmptyState title="选择一集后预览" description="上传或点选集数后，才会获取这一集的播放地址。" />
   }
+
+  let preview = (
+    <EmptyState
+      title="暂时无法播放"
+      description={playback.isError ? episodeErrorMessage(playback.error) : '播放地址已失效，请重新获取。'}
+      action={<Button onClick={() => { setFailedUrl(null); void playback.refetch() }}>重新获取</Button>}
+    />
+  )
   if (playback.isPending) {
-    return <EmptyState title="正在获取播放地址" description={`准备播放第 ${episode.episodeNumber} 集。`} />
-  }
-  if (playback.isError || !url || failed) {
-    return (
-      <EmptyState
-        title="暂时无法播放"
-        description={playback.isError ? episodeErrorMessage(playback.error) : '播放地址已失效，请重新获取。'}
-        action={<Button onClick={() => { setFailedUrl(null); void playback.refetch() }}>重新获取</Button>}
-      />
-    )
-  }
-
-  const caption = episode.durationMs === null
-    ? '正在播放已保存的原视频。服务端尚未记录时长，进度以播放器读取的媒体时长为准。'
-    : '正在播放已保存的原视频。'
-
-  return (
-    <div className="space-y-3">
+    preview = <EmptyState title="正在获取播放地址" description={`准备播放第 ${episode.episodeNumber} 集。`} />
+  } else if (url && !failed && !playback.isError) {
+    const caption = episode.durationMs === null
+      ? '正在播放已保存的原视频。服务端尚未记录时长，进度以播放器读取的媒体时长为准。'
+      : '正在播放已保存的原视频。'
+    preview = (
       <VideoPlayer
         src={url}
         type={episode.contentType}
@@ -233,9 +230,21 @@ function EpisodePreview({ projectId, episode }: { projectId: string; episode: Ep
           })
         }}
       />
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      {preview}
       <Button type="button" variant="outline" asChild>
         <Link to={`/analysis?project=${projectId}&episode=${episode.id}`}>解析这一集</Link>
       </Button>
+      <CharacterExtractionPanel
+        key={episode.id}
+        projectId={projectId}
+        episodeId={episode.id}
+        libraryHref={`/assets?project=${projectId}&episode=${episode.id}&tab=characters`}
+      />
     </div>
   )
 }

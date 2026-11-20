@@ -1,4 +1,5 @@
-import { MediaPlayer, MediaProvider } from '@vidstack/react'
+import { useEffect, useRef, useState } from 'react'
+import { MediaPlayer, MediaProvider, type MediaPlayerInstance } from '@vidstack/react'
 import { DefaultVideoLayout, defaultLayoutIcons } from '@vidstack/react/player/layouts/default'
 import '@vidstack/react/player/styles/default/theme.css'
 import '@vidstack/react/player/styles/default/layouts/video.css'
@@ -15,6 +16,7 @@ export function VideoPlayer({
   poster,
   title,
   caption,
+  seekTo,
   onError,
 }: {
   src: string
@@ -22,8 +24,21 @@ export function VideoPlayer({
   poster?: string
   title: string
   caption?: string
+  seekTo?: { id: number; seconds: number } | null
   onError?: () => void
 }) {
+  const playerRef = useRef<MediaPlayerInstance>(null)
+  const [positionableSrc, setPositionableSrc] = useState(src)
+  const [positionable, setPositionable] = useState(false)
+  if (positionableSrc !== src) {
+    setPositionableSrc(src)
+    setPositionable(false)
+  }
+  useEffect(() => {
+    const player = playerRef.current
+    if (!seekTo || !positionable || !player?.state.canSeek) return
+    player.currentTime = seekTo.seconds
+  }, [positionable, seekTo])
   const demo = src === DEMO_VIDEO_URL
   const local = src.startsWith('blob:')
   const source = type && isVideoType(type) ? { src, type } : src
@@ -35,6 +50,7 @@ export function VideoPlayer({
   return (
     <div className="overflow-hidden rounded-2xl border border-white/10 bg-black">
       <MediaPlayer
+        ref={playerRef}
         key={src}
         title={title}
         src={source}
@@ -43,6 +59,9 @@ export function VideoPlayer({
         playsInline
         load="eager"
         className="aspect-video w-full"
+        onCanPlay={() => {
+          if (playerRef.current?.state.canSeek) setPositionable(true)
+        }}
         onError={onError}
       >
         <MediaProvider />
