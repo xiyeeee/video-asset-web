@@ -96,7 +96,12 @@ export function ShotAssets({
           onReload={(shot) => reloadShots(shot.frameUrl)}
         />
       ) : null}
-      {shots.data && formal.length === 0 ? <HistoricalFrames frames={frames.data} pending={frames.isPending} error={frames.error} onRetry={() => void frames.refetch()} /> : null}
+      {shots.data && formal.length === 0 && shots.data.historical.length > 0 ? (
+        <HistoricalRecords records={shots.data.historical} />
+      ) : null}
+      {shots.data && formal.length === 0 && shots.data.historical.length === 0 ? (
+        <HistoricalFrames frames={frames.data} pending={frames.isPending} error={frames.error} onRetry={() => void frames.refetch()} />
+      ) : null}
     </div>
   )
 }
@@ -153,6 +158,36 @@ function ShotStatus({
       {canStart ? (
         <Button type="button" disabled={submitting} onClick={onSubmit}>{submitting ? '正在提交' : status === 'FAILED' ? '重试分镜提取' : '提取分镜'}</Button>
       ) : null}
+    </div>
+  )
+}
+
+function HistoricalRecords({ records }: { records: { assetId: string; startMs: number; frameUrl: string }[] }) {
+  const [failedUrl, setFailedUrl] = useState<string | null>(null)
+  return (
+    <div className="space-y-2">
+      <h2 className="text-sm font-medium">历史首帧 · {records.length} 张</h2>
+      <ol className="m-0 list-none p-0">
+        {records.map((frame, index) => (
+          <li key={frame.assetId} className="grid grid-cols-[4.75rem_1rem_minmax(0,1fr)] gap-x-3">
+            <time className="pt-4 text-right text-xs text-violet-200">{formatMediaTime(frame.startMs)}</time>
+            <div className="relative flex justify-center">
+              {index < records.length - 1 ? <span className="absolute top-5 bottom-0 w-px bg-white/15" /> : null}
+              <span className="relative z-10 mt-4 h-2.5 w-2.5 rounded-full bg-white/40" />
+            </div>
+            <article className="mb-4 overflow-hidden rounded-2xl border border-white/10 bg-card">
+              <div className="flex flex-col gap-3 p-3 sm:flex-row">
+                {failedUrl === frame.frameUrl ? (
+                  <div className="flex h-28 w-full items-center justify-center text-xs text-muted-foreground sm:w-44">图片已失效，请重新进入这一页</div>
+                ) : (
+                  <img src={frame.frameUrl} alt="历史首帧" referrerPolicy="no-referrer" className="h-28 w-full rounded-xl object-cover sm:w-44" onError={() => setFailedUrl(frame.frameUrl)} />
+                )}
+                <p className="pt-1 text-sm text-muted-foreground">历史首帧 · 未分段</p>
+              </div>
+            </article>
+          </li>
+        ))}
+      </ol>
     </div>
   )
 }

@@ -97,20 +97,76 @@ export const startCharacterExtraction = (projectId: string, episodeId: string) =
 export const retryCharacterExtraction = (projectId: string, episodeId: string, taskId: string) =>
   submitTask(projectId, episodeId, `/character-extraction/tasks/${taskId}/retry`)
 
-export const listCharacterAssets = (
+const unifiedCharacterSchema = z.object({
+  assetId: z.string().min(1),
+  sourceTaskId: z.string().nullable(),
+  sizeBytes: z.number().int().nonnegative(),
+  expiresInSeconds: z.number().positive(),
+  details: z.object({
+    timestampMs: z.number().int().nonnegative(),
+    sourceFrame: z.string().nullable(),
+    frameCharacterNumber: z.number().int().positive().nullable(),
+    imageUrl: z.string().url(),
+  }),
+})
+
+const unifiedCharacterPageSchema = z.object({
+  items: z.array(unifiedCharacterSchema),
+  pageNum: z.number().int().positive(),
+  pageSize: z.number().int().positive(),
+  total: z.number().int().nonnegative(),
+})
+
+const mediaAssets = axios.create({ timeout: 15_000 })
+
+const listUnifiedCharacterAssets = (episodeId: string, page: number, size: number, signal?: AbortSignal) =>
+  authorizedRequest(
+    (authorization) => mediaAssets.get(`/api/media/episodes/${episodeId}/assets`, {
+      signal,
+      headers: { Authorization: authorization },
+      params: { type: 'CHARACTER', pageNum: page, pageSize: size },
+    }),
+    unifiedCharacterPageSchema,
+  ).then((result) => ({
+    items: result.data.items.flatMap((item) => {
+      if (item.details.frameCharacterNumber === null) return []
+      return [{
+        id: item.assetId,
+        taskId: item.sourceTaskId ?? item.assetId,
+        timestampMs: item.details.timestampMs,
+        sourceFrame: item.details.sourceFrame ?? '未标明',
+        frameCharacterNumber: item.details.frameCharacterNumber,
+        sizeBytes: item.sizeBytes,
+        url: item.details.imageUrl,
+        expiresInSeconds: item.expiresInSeconds,
+      }]
+    }),
+    page: result.data.pageNum,
+    size: result.data.pageSize,
+    total: result.data.total,
+  }))
+
+export const listCharacterAssets = async (
   projectId: string,
   episodeId: string,
   page: number,
   size: number,
   signal?: AbortSignal,
-) => authorizedRequest(
-  (authorization) => http.get(`${episodePath(projectId, episodeId)}/character-assets`, {
-    signal,
-    params: { page, size },
-    headers: { Authorization: authorization },
-  }),
-  assetPageSchema,
-).then((result) => result.data)
+) => {
+  try {
+    return await listUnifiedCharacterAssets(episodeId, page, size, signal)
+  } catch (error) {
+    if (!(error instanceof AuthError) || error.status !== 404) throw error
+  }
+  return authorizedRequest(
+    (authorization) => http.get(`${episodePath(projectId, episodeId)}/character-assets`, {
+      signal,
+      params: { page, size },
+      headers: { Authorization: authorization },
+    }),
+    assetPageSchema,
+  ).then((result) => result.data)
+}
 
 const stageLabels: Record<CharacterStage, string> = {
   EXTRACTING_FRAMES: '抽帧',

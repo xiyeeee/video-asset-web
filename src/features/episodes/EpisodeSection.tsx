@@ -55,8 +55,10 @@ export function EpisodeSection({ projectId }: { projectId: string }) {
   const [uploadError, setUploadError] = useState<unknown>(null)
   const [taskError, setTaskError] = useState<unknown>(null)
   const [taskId, setTaskId] = useState<string | null>(null)
-  const [savedEpisode, setSavedEpisode] = useState<EpisodeSummary | null>(null)
+  const [savedEpisodeId, setSavedEpisodeId] = useState<string | null>(null)
   const [phase, setPhase] = useState<UploadPhase>('idle')
+  const [episodeNumber, setEpisodeNumber] = useState('')
+  const [numberEdited, setNumberEdited] = useState(false)
   const [autoExtract, setAutoExtract] = useState(true)
   const [selectedTypes, setSelectedTypes] = useState<ExtractType[] | null>(null)
   const [localMessage, setLocalMessage] = useState('')
@@ -83,7 +85,7 @@ export function EpisodeSection({ projectId }: { projectId: string }) {
     setUploadError(null)
     setTaskError(null)
     setTaskId(null)
-    setSavedEpisode(null)
+    setSavedEpisodeId(null)
     setPhase('idle')
     setLocalMessage('')
   }
@@ -91,6 +93,11 @@ export function EpisodeSection({ projectId }: { projectId: string }) {
   const supported = (capabilities.data ?? []).filter((item) => item.supported).map((item) => item.type)
   const chosen = selectedTypes ?? supported
   const busy = phase === 'uploading' || phase === 'creating-task'
+  const suggestedNumber = page === pageCount && list.data
+    ? String(list.data.items.reduce((max, item) => Math.max(max, item.episodeNumber), 0) + 1)
+    : ''
+  const numberValue = numberEdited ? episodeNumber : episodeNumber || suggestedNumber
+  const parsedNumber = /^[1-9]\d*$/.test(numberValue) ? Number(numberValue) : null
 
   const submit = async () => {
     if (uploadingRef.current) return
@@ -98,12 +105,12 @@ export function EpisodeSection({ projectId }: { projectId: string }) {
       setLocalMessage('请至少选择一种可提取的素材类型。')
       return
     }
-    if (phase === 'task-failed' && savedEpisode) {
+    if (phase === 'task-failed' && savedEpisodeId) {
       uploadingRef.current = true
       setPhase('creating-task')
       setTaskError(null)
       try {
-        const created = await createExtractionTask(projectId, savedEpisode.id, chosen)
+        const created = await createExtractionTask(projectId, savedEpisodeId, chosen)
         setTaskId(created.id)
         setPhase('task-created')
         await queryClient.invalidateQueries({ queryKey: extractionBoardKey })
@@ -118,6 +125,10 @@ export function EpisodeSection({ projectId }: { projectId: string }) {
       return
     }
     if (!file || !uploadKey) return
+    if (!parsedNumber || parsedNumber > 4294967295) {
+      setLocalMessage('请填写未被占用的集号。')
+      return
+    }
     if (!file.name.toLowerCase().endsWith('.mp4')) {
       setLocalMessage('请检查文件是否为 MP4。')
       return
@@ -137,20 +148,23 @@ export function EpisodeSection({ projectId }: { projectId: string }) {
     try {
       const result = await uploadAndExtract({
         projectId,
+        episodeNumber: parsedNumber,
         file,
         idempotencyKey: uploadKey,
         autoExtract,
         extractTypes: chosen,
-        onProgress: setProgress,
-        onUploaded: () => setPhase('creating-task'),
+        onProgress: (ratio) => {
+          setProgress(ratio)
+          if (ratio >= 1 && autoExtract) setPhase('creating-task')
+        },
         signal: controller.signal,
       })
       if (result.created) {
         const last = Math.max(1, Math.ceil(((list.data?.total ?? 0) + 1) / EPISODE_PAGE_SIZE))
         setPage(last)
       }
-      setPicked(result.episode)
-      setSavedEpisode(result.episode)
+      setSavedEpisodeId(result.episodeId)
+      if (result.episode) setPicked(result.episode)
       setFile(null)
       setUploadKey(null)
       setProgress(null)
@@ -191,6 +205,19 @@ export function EpisodeSection({ projectId }: { projectId: string }) {
             </label>
           </Button>
         </div>
+        <label className="block text-sm">
+          集号
+          <input
+            className="mt-1 w-full rounded-lg border border-white/10 bg-background/40 px-3 py-2"
+            inputMode="numeric"
+            value={numberValue}
+            disabled={busy}
+            onChange={(event) => {
+              setNumberEdited(true)
+              setEpisodeNumber(event.target.value.trim())
+            }}
+          />
+        </label>
         <ExtractOptions
           capabilities={capabilities.data}
           loading={capabilities.isPending}

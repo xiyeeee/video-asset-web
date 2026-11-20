@@ -36,9 +36,17 @@ const pageSchema = z.object({
 
 export type ShotAssetStatus = z.infer<typeof assetStatusSchema>
 
+export type HistoricalFrame = {
+  assetId: string
+  startMs: number
+  frameUrl: string
+  expiresInSeconds: number
+}
+
 export type ShotLibrary = {
   status: ShotAssetStatus
   formal: FormalShot[]
+  historical: HistoricalFrame[]
   rejected: number
   expiresInSeconds: number | null
 }
@@ -84,14 +92,23 @@ export const listEpisodeShots = async (episodeId: string, signal?: AbortSignal):
       items = items.concat(next.items)
     }
   }
-  const classified = classifyShots(items.map(toCandidate)).formal.filter((shot) =>
+  const candidates = items.map(toCandidate)
+  const formal = classifyShots(candidates).formal.filter((shot) =>
     sourceTaskId ? shot.sourceTaskId === sourceTaskId : true)
-  const rejected = items.length - classified.length
+  const formalIds = new Set(formal.map((shot) => shot.assetId))
+  const historical = candidates.flatMap((item) => {
+    if (item.assetType !== 'SHOT' || formalIds.has(item.assetId)) return []
+    const startMs = item.details.startMs
+    const frameUrl = item.details.frameUrl
+    if (startMs == null || !frameUrl) return []
+    return [{ assetId: item.assetId, startMs, frameUrl, expiresInSeconds: item.expiresInSeconds }]
+  })
   return {
     status: first.status,
-    formal: classified,
-    rejected,
-    expiresInSeconds: classified[0]?.expiresInSeconds ?? items[0]?.expiresInSeconds ?? null,
+    formal,
+    historical,
+    rejected: candidates.filter((item) => item.assetType === 'SHOT').length - formal.length - historical.length,
+    expiresInSeconds: formal[0]?.expiresInSeconds ?? historical[0]?.expiresInSeconds ?? items[0]?.expiresInSeconds ?? null,
   }
 }
 

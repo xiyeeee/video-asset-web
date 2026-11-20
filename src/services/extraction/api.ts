@@ -63,12 +63,23 @@ export type ExtractionBoard = {
 }
 
 export type UploadExtractionResult = {
-  episode: EpisodeSummary
+  episode: EpisodeSummary | null
+  episodeId: string
   created: boolean
   autoExtract: boolean
   taskId: string | null
+  taskStatus: TaskStatus | null
   taskError: unknown
 }
+
+const uploadResultSchema = z.object({
+  videoId: z.string().min(1),
+  episodeId: z.string().min(1),
+  autoExtract: z.boolean(),
+  taskId: z.string().nullable(),
+  taskStatus: z.enum(['PENDING', 'RUNNING', 'SUCCESS', 'PARTIAL_SUCCESS', 'FAILED', 'CANCELLED']).nullable(),
+  taskErrorCode: z.string().nullable(),
+})
 
 const capabilitySchema = z.object({
   type: z.enum(extractTypes),
@@ -236,7 +247,7 @@ const stepDetail = (step: z.infer<typeof extractionStepSchema>) => {
   if (step.stage) parts.push(step.stage)
   if (step.progress === 100) parts.push('100%')
   if (step.assetCount !== null) parts.push(`${step.assetCount} 条素材`)
-  if (step.errorCode) parts.push(step.errorCode)
+  if (step.errorCode) parts.push(extractionFailureText(step.errorCode) ?? step.errorCode)
   return parts.join(' · ')
 }
 
@@ -356,32 +367,120 @@ export const retryExtractionTask = async (task: ExtractionTask) => {
   await retryCharacterExtraction(task.projectId, task.episodeId, task.id)
 }
 
+const UPLOAD_TIMEOUT_MS = 330_000
+
+const findUploadedEpisode = async (projectId: string, episodeId: string, signal?: AbortSignal) => {
+  const first = await listEpisodes({ projectId, page: 1, size: 100 }, signal)
+  const matched = first.items.find((item) => item.id === episodeId)
+  if (matched || first.total <= first.items.length) return matched ?? null
+  const lastPage = Math.max(1, Math.ceil(first.total / first.size))
+  const last = await listEpisodes({ projectId, page: lastPage, size: first.size }, signal)
+  return last.items.find((item) => item.id === episodeId) ?? null
+}
+
+export const extractionFailureText = (code: string | null) => {
+  if (!code) return null
+  if (code === 'EXTRACTION_TASK_CREATE_FAILED') return '视频已保存，提取任务没有建成。可以重试创建任务。'
+  if (code === 'EPISODE_NUMBER_CONFLICT') return '这个集号已经被占用，请换一个集号。'
+  if (code === 'EXTRACTION_TASK_CONFLICT') return '同一个上传键不能改成另一组提取参数。'
+  if (code === 'EXTRACTION_UNSUPPORTED') return '所选提取类型当前不可用，请刷新能力后重选。'
+  if (code === 'AUDIO_STREAM_NOT_FOUND') return '视频没有音轨。已成功的其他素材仍可查看。'
+  if (code === 'SHOT_MANIFEST_INVALID') return '分镜清单校验失败，可以单独重试分镜。'
+  if (code === 'SHOT_DETECTION_FAILED' || code === 'SHOT_PREVIEW_FAILED' || code === 'SHOT_WRITE_FAILED' || code === 'SHOT_EXTRACTION_TIMEOUT') {
+    return '分镜处理失败，可以单独重试。'
+  }
+  if (code === 'QUEUE_UNAVAILABLE' || code === 'PYTHON_TASK_LOST' || code === 'CHARACTER_TASK_TIMEOUT' || code === 'EXTRACTION_TASK_TIMEOUT') {
+    return '任务已超过恢复期限，可以重试。'
+  }
+  return code
+}
+
 export const uploadAndExtract = async (input: {
   projectId: string
+  episodeNumber: number
   file: File
   idempotencyKey: string
   autoExtract: boolean
   extractTypes: ExtractType[]
   onProgress: (ratio: number) => void
-  onUploaded?: () => void
   signal?: AbortSignal
 }): Promise<UploadExtractionResult> => {
-  const uploaded = await uploadEpisode(
-    input.projectId,
-    input.file,
-    input.idempotencyKey,
-    input.onProgress,
-    input.signal,
-  )
-  if (!input.autoExtract) {
-    return { episode: uploaded.episode, created: uploaded.created, autoExtract: false, taskId: null, taskError: null }
+  const body = new FormData()
+  body.append('file', input.file)
+  body.append('projectId', input.projectId)
+  body.append('episodeNumber', String(input.episodeNumber))
+  body.append('autoExtract', input.autoExtract ? 'true' : 'false')
+  if (input.autoExtract) {
+    for (const type of input.extractTypes) body.append('extractTypes', type)
   }
-  input.onUploaded?.()
+  let created = false
   try {
-    const created = await createExtractionTask(input.projectId, uploaded.episode.id, input.extractTypes)
-    return { episode: uploaded.episode, created: uploaded.created, autoExtract: true, taskId: created.id, taskError: null }
+    const result = await authorizedRequest(
+      (authorization) => gateway.post('/media/videos/upload', body, {
+        signal: input.signal,
+        timeout: UPLOAD_TIMEOUT_MS,
+        maxBodyLength: Infinity,
+        maxContentLength: Infinity,
+        headers: { Authorization: authorization, 'Idempotency-Key': input.idempotencyKey },
+        onUploadProgress: (event) => {
+          const total = event.total ?? input.file.size
+          if (total > 0) input.onProgress(Math.min(1, event.loaded / total))
+        },
+      }).then((response) => {
+        created = response.status === 201
+        return response
+      }),
+      uploadResultSchema,
+    )
+    const data = result.data
+    const taskError = data.taskErrorCode
+      ? new AuthError(extractionFailureText(data.taskErrorCode) ?? data.taskErrorCode, 200, data.taskErrorCode)
+      : null
+    return {
+      episode: await findUploadedEpisode(input.projectId, data.episodeId, input.signal),
+      episodeId: data.episodeId,
+      created,
+      autoExtract: data.autoExtract,
+      taskId: data.taskId,
+      taskStatus: data.taskStatus,
+      taskError,
+    }
   } catch (error) {
-    return { episode: uploaded.episode, created: uploaded.created, autoExtract: true, taskId: null, taskError: error }
+    if (!(error instanceof AuthError) || error.status !== 404) throw error
+  }
+  const uploaded = await uploadEpisode(input.projectId, input.file, input.idempotencyKey, input.onProgress, input.signal)
+  if (!input.autoExtract) {
+    return {
+      episode: uploaded.episode,
+      episodeId: uploaded.episode.id,
+      created: uploaded.created,
+      autoExtract: false,
+      taskId: null,
+      taskStatus: null,
+      taskError: null,
+    }
+  }
+  try {
+    const task = await createExtractionTask(input.projectId, uploaded.episode.id, input.extractTypes)
+    return {
+      episode: uploaded.episode,
+      episodeId: uploaded.episode.id,
+      created: uploaded.created,
+      autoExtract: true,
+      taskId: task.id,
+      taskStatus: 'PENDING',
+      taskError: null,
+    }
+  } catch (error) {
+    return {
+      episode: uploaded.episode,
+      episodeId: uploaded.episode.id,
+      created: uploaded.created,
+      autoExtract: true,
+      taskId: null,
+      taskStatus: 'FAILED',
+      taskError: error,
+    }
   }
 }
 

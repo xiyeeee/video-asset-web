@@ -109,7 +109,7 @@ export function AssetLibraryPage() {
           </TabsContent>
           <TabsContent value="dialogue"><DialogueAssets /></TabsContent>
           <TabsContent value="background"><BackgroundAssets /></TabsContent>
-          <TabsContent value="audio"><AudioAssets /></TabsContent>
+          <TabsContent value="audio">{target.episodeId ? <AudioAssets episodeId={target.episodeId} /> : null}</TabsContent>
           <TabsContent value="story"><StoryAssets /></TabsContent>
         </Tabs>
       ) : null}

@@ -106,6 +106,8 @@ export const episodeErrorMessage = (error: unknown) => {
   if (!(error instanceof AuthError)) return '暂时无法完成操作，请稍后重试。'
   if (error.code === 'INVALID_VIDEO') return '请检查文件是否为 MP4。'
   if (error.code === 'VIDEO_TOO_LARGE' || error.status === 413) return '文件超过大小限制，单个视频不能超过 100 MiB。'
+  if (error.code === 'EPISODE_NUMBER_CONFLICT') return '这个集号已经被占用，请换一个集号。'
+  if (error.code === 'EXTRACTION_TASK_CONFLICT') return '同一个上传键不能改成另一组提取参数，请重新选择文件。'
   if (error.code === 'VIDEO_UPLOAD_CONFLICT' || error.status === 409) return '这个上传键已经对应另一份文件，请重新选择后再上传。'
   if (error.code === 'NOT_FOUND' || error.status === 404) return '项目或集数不可访问。'
   if (error.code === 'VIDEO_STORAGE_UNAVAILABLE' || error.status === 503) return '视频存储暂时不可用，请使用原文件重试。'
