@@ -107,7 +107,9 @@ export function AssetLibraryPage() {
           <TabsContent value="characters" className="xl:min-h-0 xl:flex-1 xl:overflow-hidden">
             <CharacterAssets projectId={projectId} episodeId={target.episodeId} episodeLabel={episodeLabel} />
           </TabsContent>
-          <TabsContent value="dialogue"><DialogueAssets /></TabsContent>
+          <TabsContent value="dialogue" className="xl:min-h-0 xl:flex-1 xl:overflow-auto">
+            <DialogueAssets projectId={projectId} episodeId={target.episodeId} />
+          </TabsContent>
           <TabsContent value="background"><BackgroundAssets /></TabsContent>
           <TabsContent value="audio">{target.episodeId ? <AudioAssets episodeId={target.episodeId} /> : null}</TabsContent>
           <TabsContent value="story"><StoryAssets /></TabsContent>

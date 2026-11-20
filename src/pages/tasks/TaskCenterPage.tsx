@@ -110,7 +110,9 @@ function TaskDetail({
   const detail = useExtractionTask(task?.id)
   if (!task) return <EmptyState title="选择一个任务" description="任务详情会显示每种素材的真实阶段。没有百分比时，不会自行估算进度。" />
   const current = detail.data ?? task
-  const assetTab = current.types.includes('SHOT') ? 'shots' : 'characters'
+  let assetTab = 'characters'
+  if (current.types.includes('DIALOGUE')) assetTab = 'dialogue'
+  if (current.types.includes('SHOT')) assetTab = 'shots'
   return (
     <article className="space-y-3 rounded-2xl border border-white/10 bg-card p-4">
       <div className="flex items-center justify-between gap-3">

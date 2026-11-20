@@ -294,7 +294,7 @@ export const loadExtractionBoard = async (signal?: AbortSignal) => {
   }
 }
 
-export const findShotTask = async (episodeId: string, signal?: AbortSignal) => {
+export const findExtractionTask = async (episodeId: string, type: ExtractType, signal?: AbortSignal) => {
   const result = await authorizedRequest(
     (authorization) => gateway.get('/ai/tasks', {
       signal,
@@ -305,10 +305,13 @@ export const findShotTask = async (episodeId: string, signal?: AbortSignal) => {
   )
   for (const item of result.data.items.slice(0, 5)) {
     const detail = await getExtractionTask(item.taskId, signal)
-    if (detail.types.includes('SHOT')) return detail
+    if (detail.types.includes(type)) return detail
   }
   return null
 }
+
+export const findShotTask = (episodeId: string, signal?: AbortSignal) =>
+  findExtractionTask(episodeId, 'SHOT', signal)
 
 export const getExtractionTask = async (taskId: string, signal?: AbortSignal) => {
   const result = await authorizedRequest(
@@ -388,6 +391,10 @@ export const extractionFailureText = (code: string | null) => {
   if (code === 'SHOT_MANIFEST_INVALID') return '分镜清单校验失败，可以单独重试分镜。'
   if (code === 'SHOT_DETECTION_FAILED' || code === 'SHOT_PREVIEW_FAILED' || code === 'SHOT_WRITE_FAILED' || code === 'SHOT_EXTRACTION_TIMEOUT') {
     return '分镜处理失败，可以单独重试。'
+  }
+  if (code === 'DIALOGUE_MANIFEST_INVALID') return '对白清单校验失败，可以单独重试对白。'
+  if (code === 'DIALOGUE_AUDIO_PREP_FAILED' || code === 'DIALOGUE_MODEL_UNAVAILABLE' || code === 'DIALOGUE_TRANSCRIPTION_FAILED' || code === 'DIALOGUE_EXTRACTION_TIMEOUT' || code === 'DIALOGUE_WRITE_FAILED') {
+    return '对白处理失败，可以单独重试。'
   }
   if (code === 'QUEUE_UNAVAILABLE' || code === 'PYTHON_TASK_LOST' || code === 'CHARACTER_TASK_TIMEOUT' || code === 'EXTRACTION_TASK_TIMEOUT') {
     return '任务已超过恢复期限，可以重试。'

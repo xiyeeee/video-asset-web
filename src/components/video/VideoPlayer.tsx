@@ -28,6 +28,7 @@ export function VideoPlayer({
   caption,
   seekTo,
   onTimeUpdate,
+  onDuration,
   onError,
 }: {
   src: string
@@ -37,6 +38,7 @@ export function VideoPlayer({
   caption?: string
   seekTo?: { id: number; seconds: number } | null
   onTimeUpdate?: (seconds: number) => void
+  onDuration?: (seconds: number) => void
   onError?: () => void
 }) {
   const playerRef = useRef<MediaPlayerInstance>(null)
@@ -77,6 +79,10 @@ export function VideoPlayer({
         onTimeUpdate={(event) => {
           const seconds = readPlaybackSeconds(event)
           if (seconds !== null) onTimeUpdate?.(seconds)
+        }}
+        onDurationChange={(event) => {
+          const seconds = readPlaybackSeconds(event)
+          if (seconds !== null && seconds > 0) onDuration?.(seconds)
         }}
         onError={onError}
       >

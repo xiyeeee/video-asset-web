@@ -13,5 +13,6 @@
 | `POST /api/media/videos/upload` | 一次提交文件、集号、`autoExtract` 和 `extractTypes`。任务创建失败时保留 `episodeId` 和 `taskErrorCode`。该路径 404 时才回退旧上传 |
 | 人物图片 | 优先 `GET /api/media/episodes/{episodeId}/assets?type=CHARACTER`。404 时回退旧人物分页 |
 | 音频 | `GET /api/media/episodes/{episodeId}/assets?type=AUDIO`，当前类型为 `ORIGINAL_TRACK` |
+| `GET /api/media/episodes/{episodeId}/assets?type=DIALOGUE` | 对白文本和时间。超过一页时用第一条的 `sourceTaskId` 固定后续页。`expiresInSeconds` 为 0 |
 
 进度只在接口返回 `100` 时显示百分之百。签名地址只用于当次预览，不写入本地存储或日志。
