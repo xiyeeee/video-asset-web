@@ -3,7 +3,7 @@ import { Link } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { EmptyState, PageSkeleton } from '@/components/common/EmptyState'
 import { Button } from '@/components/ui/button'
-import { useExtractionBoard, useExtractionCapabilities } from '@/features/extraction/use-extraction'
+import { useExtractionBoard, useExtractionCapabilities, useExtractionTask } from '@/features/extraction/use-extraction'
 import { formatDateTime } from '@/lib/format'
 import { characterErrorMessage } from '@/services/characters/api'
 import {
@@ -89,7 +89,7 @@ function TaskRow({ task, selected, onSelect }: { task: ExtractionTask; selected:
   return (
     <button type="button" onClick={onSelect} className={`w-full rounded-2xl border p-4 text-left ${selected ? 'border-violet-300/60 bg-violet-400/10' : 'border-white/10 bg-card'}`}>
       <span className="flex items-center justify-between gap-3">
-        <span className="text-sm font-medium">{task.projectName || '项目'} · 第 {task.episodeNumber || '—'} 集</span>
+        <span className="text-sm font-medium">{task.projectName || '项目'} · {task.episodeNumber ? `第 ${task.episodeNumber} 集` : task.episodeTitle || '剧集'}</span>
         <span className="text-xs text-violet-200">{taskStatusLabel(task.status)}</span>
       </span>
       <span className="mt-1 block text-xs text-muted-foreground">任务 {task.id} · {task.types.map(extractTypeName).join('、') || '未标明类型'}</span>
@@ -107,24 +107,28 @@ function TaskDetail({
   busy: boolean
   onRetry: (task: ExtractionTask) => void
 }) {
+  const detail = useExtractionTask(task?.id)
   if (!task) return <EmptyState title="选择一个任务" description="任务详情会显示每种素材的真实阶段。没有百分比时，不会自行估算进度。" />
+  const current = detail.data ?? task
+  const assetTab = current.types.includes('SHOT') ? 'shots' : 'characters'
   return (
     <article className="space-y-3 rounded-2xl border border-white/10 bg-card p-4">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="font-medium">第 {task.episodeNumber || '—'} 集 · AI 素材提取</h2>
-        <span className="text-sm text-violet-200">{taskStatusLabel(task.status)}</span>
+        <h2 className="font-medium">{current.episodeNumber ? `第 ${current.episodeNumber} 集` : current.episodeTitle} · AI 素材提取</h2>
+        <span className="text-sm text-violet-200">{taskStatusLabel(current.status)}</span>
       </div>
       <dl className="grid gap-2 text-sm text-muted-foreground">
-        <div>任务 ID {task.id}</div>
-        <div>项目 {task.projectName || '—'}</div>
-        <div>剧集 {task.episodeTitle || '—'}</div>
-        <div>创建 {task.createdAt ? formatDateTime(task.createdAt) : '—'}</div>
-        <div>开始 {task.startedAt ? formatDateTime(task.startedAt) : '—'}</div>
-        <div>完成 {task.finishedAt ? formatDateTime(task.finishedAt) : '—'}</div>
+        <div>任务 ID {current.id}</div>
+        <div>项目 {current.projectName || '—'}</div>
+        <div>剧集 {current.episodeTitle || '—'}</div>
+        <div>创建 {current.createdAt ? formatDateTime(current.createdAt) : '—'}</div>
+        <div>开始 {current.startedAt ? formatDateTime(current.startedAt) : '—'}</div>
+        <div>完成 {current.finishedAt ? formatDateTime(current.finishedAt) : '—'}</div>
       </dl>
-      {task.errorMessage ? <p className="text-sm text-rose-300">{task.errorMessage}</p> : null}
+      {detail.isError ? <p className="text-sm text-rose-300">任务详情读取失败。</p> : null}
+      {current.errorMessage ? <p className="text-sm text-rose-300">{current.errorMessage}</p> : null}
       <div className="space-y-2">
-        {task.steps.map((step) => (
+        {current.steps.map((step) => (
           <div key={step.type} className="flex items-start justify-between gap-3 rounded-xl bg-background/40 px-3 py-2 text-sm">
             <span>{extractTypeName(step.type)}</span>
             <span className="text-right text-muted-foreground">{step.detail || step.state}</span>
@@ -132,10 +136,10 @@ function TaskDetail({
         ))}
       </div>
       <div className="flex flex-wrap gap-2">
-        {task.status === 'FAILED' ? <Button type="button" disabled={busy} onClick={() => onRetry(task)}>{busy ? '正在提交' : '重试'}</Button> : null}
-        {task.projectId && task.episodeId ? (
+        {current.status === 'FAILED' || current.status === 'PARTIAL_SUCCESS' ? <Button type="button" disabled={busy} onClick={() => onRetry(current)}>{busy ? '正在提交' : '重试'}</Button> : null}
+        {current.projectId && current.episodeId ? (
           <Button type="button" variant="outline" asChild>
-            <Link to={`/assets?project=${task.projectId}&episode=${task.episodeId}&tab=characters`}>查看已生成素材</Link>
+            <Link to={`/assets?project=${current.projectId}&episode=${current.episodeId}&tab=${assetTab}`}>查看已生成素材</Link>
           </Button>
         ) : null}
       </div>

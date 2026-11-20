@@ -1,17 +1,16 @@
 # 前端提取接口适配
 
-目标接口与当前 Java 接口还没有完全对齐。前端先走适配层，只展示真实接口返回的数据。
+能力、任务和分镜素材走网关文档中的完整路径。网关去掉 `/api/media` 或 `/api/ai` 后，服务上的路径不带 `/v1`。
 
-| 目标 | 当前行为 |
+| 接口 | 当前行为 |
 | --- | --- |
-| `GET /api/media/v1/extraction-capabilities` | 成功时使用返回值，并补齐六种类型里缺失的项为不支持。404 时只将 `CHARACTER` 标为支持，因为它对应已上线的人物提取 |
-| `POST /api/media/v1/projects/{projectId}/episodes` | 继续用于上传视频。不改用尚未存在的 `/api/media/videos/upload` |
-| `POST /api/ai/v1/tasks` | 自动提取和手动发起时优先调用。404 后再调用人物提取 |
-| `GET /api/ai/v1/tasks` | 任务中心优先调用。404 或空列表时，扫描项目、剧集和每集最新人物任务 |
-| `POST /api/ai/v1/tasks/{taskId}/retry` | 优先调用。404 后使用人物任务重试 |
-| 分镜结果 | `GET /api/ai/v1/projects/{projectId}/episodes/{episodeId}/frames` |
-| 人物结果 | `GET /api/ai/v1/projects/{projectId}/episodes/{episodeId}/character-assets` |
+| `GET /api/media/extraction-capabilities` | 使用返回值，并补齐缺失类型为不支持。404 时仍只把人物标为可用 |
+| `POST /api/ai/tasks` | 请求体是 `episodeId` 和 `extractTypes`。404 且选择了人物时，再调用原人物提取 |
+| `GET /api/ai/tasks` | 按 `{items,pageNum,pageSize,total}` 读取。列表步骤为空时，详情再请求 `GET /api/ai/tasks/{taskId}`。接口 404 时扫描原人物任务 |
+| `POST /api/ai/tasks/{taskId}/retry` | 优先调用。404 后使用人物任务重试 |
+| `GET /api/media/episodes/{episodeId}/assets?type=SHOT` | 正式分镜。超过一页时用第一条的 `sourceTaskId` 固定后续页 |
+| 历史首帧 | 没有正式分镜时仍读 `GET /api/ai/v1/projects/{projectId}/episodes/{episodeId}/frames` |
+| 视频上传 | 仍是 `POST /api/media/v1/projects/{projectId}/episodes` |
+| 人物图片 | 仍是人物素材分页接口 |
 
-人物任务状态 `SUCCEEDED` 在任务中心显示为 `SUCCESS`。没有 `PARTIAL_SUCCESS` 或 `CANCELLED` 的现有响应时，不会自行生成这两种状态。
-
-签名图片地址只用于当次预览和下载，不写入本地存储或日志。
+进度只在接口返回 `100` 时显示百分之百。签名地址只用于当次预览，不写入本地存储或日志。

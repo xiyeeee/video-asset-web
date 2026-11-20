@@ -101,7 +101,9 @@ export function AssetLibraryPage() {
           <TabsList className="max-w-full overflow-x-auto">
             {assetTabs.map((item) => <TabsTrigger key={item} value={item}>{tabLabel[item]}</TabsTrigger>)}
           </TabsList>
-          <TabsContent value="shots" className="xl:min-h-0 xl:flex-1 xl:overflow-auto"><ShotAssets projectId={projectId} episodeId={target.episodeId} /></TabsContent>
+          <TabsContent value="shots" className="xl:min-h-0 xl:flex-1 xl:overflow-auto">
+            <ShotAssets key={target.episodeId} projectId={projectId} episodeId={target.episodeId} />
+          </TabsContent>
           <TabsContent value="characters" className="xl:min-h-0 xl:flex-1 xl:overflow-hidden">
             <CharacterAssets projectId={projectId} episodeId={target.episodeId} episodeLabel={episodeLabel} />
           </TabsContent>

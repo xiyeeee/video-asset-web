@@ -10,6 +10,16 @@ const videoTypes = ['video/mp4', 'video/webm', 'video/3gp', 'video/ogg', 'video/
 const isVideoType = (value: string): value is (typeof videoTypes)[number] =>
   videoTypes.some((item) => item === value)
 
+const readPlaybackSeconds = (event: unknown) => {
+  if (!event || typeof event !== 'object' || !('detail' in event)) return null
+  const detail = event.detail
+  if (typeof detail === 'number') return detail
+  if (detail && typeof detail === 'object' && 'currentTime' in detail && typeof detail.currentTime === 'number') {
+    return detail.currentTime
+  }
+  return null
+}
+
 export function VideoPlayer({
   src,
   type,
@@ -17,6 +27,7 @@ export function VideoPlayer({
   title,
   caption,
   seekTo,
+  onTimeUpdate,
   onError,
 }: {
   src: string
@@ -25,6 +36,7 @@ export function VideoPlayer({
   title: string
   caption?: string
   seekTo?: { id: number; seconds: number } | null
+  onTimeUpdate?: (seconds: number) => void
   onError?: () => void
 }) {
   const playerRef = useRef<MediaPlayerInstance>(null)
@@ -61,6 +73,10 @@ export function VideoPlayer({
         className="aspect-video w-full"
         onCanPlay={() => {
           if (playerRef.current?.state.canSeek) setPositionable(true)
+        }}
+        onTimeUpdate={(event) => {
+          const seconds = readPlaybackSeconds(event)
+          if (seconds !== null) onTimeUpdate?.(seconds)
         }}
         onError={onError}
       >

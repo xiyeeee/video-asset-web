@@ -75,22 +75,38 @@ const capabilitySchema = z.object({
   supported: z.boolean(),
 })
 
-const unifiedTaskSchema = z.object({
-  id: z.string().min(1).optional(),
-  taskId: z.union([z.string().min(1), z.number()]).optional(),
-  projectId: z.union([z.string().min(1), z.number()]).optional(),
-  episodeId: z.union([z.string().min(1), z.number()]),
-  status: z.enum(['PENDING', 'RUNNING', 'SUCCESS', 'PARTIAL_SUCCESS', 'FAILED', 'CANCELLED']).optional(),
-  taskStatus: z.enum(['PENDING', 'RUNNING', 'SUCCESS', 'PARTIAL_SUCCESS', 'FAILED', 'CANCELLED']).optional(),
-  extractTypes: z.array(z.enum(extractTypes)).optional(),
-  createdAt: z.string().optional(),
-  startedAt: z.string().nullable().optional(),
-  finishedAt: z.string().nullable().optional(),
-  errorMessage: z.string().nullable().optional(),
+const taskStatusSchema = z.enum(['PENDING', 'RUNNING', 'SUCCESS', 'PARTIAL_SUCCESS', 'FAILED', 'CANCELLED'])
+
+const extractionStepSchema = z.object({
+  type: z.enum(extractTypes),
+  status: taskStatusSchema,
+  progress: z.number().nullable(),
+  stage: z.string().nullable(),
+  assetCount: z.number().int().nonnegative().nullable(),
+  errorCode: z.string().nullable(),
+  sourceTaskId: z.string().nullable(),
 })
 
-const media = axios.create({ baseURL: '/api/media/v1', timeout: 15_000 })
-const ai = axios.create({ baseURL: '/api/ai/v1', timeout: 15_000 })
+const extractionTaskSchema = z.object({
+  taskId: z.string().min(1),
+  projectId: z.string().min(1),
+  episodeId: z.string().min(1),
+  status: taskStatusSchema,
+  progress: z.number().nullable(),
+  createdAt: z.string(),
+  startedAt: z.string().nullable(),
+  finishedAt: z.string().nullable(),
+  steps: z.array(extractionStepSchema).nullable(),
+})
+
+const extractionTaskPageSchema = z.object({
+  items: z.array(extractionTaskSchema),
+  pageNum: z.number().int().positive(),
+  pageSize: z.number().int().positive(),
+  total: z.number().int().nonnegative(),
+})
+
+const gateway = axios.create({ baseURL: '/api', timeout: 15_000 })
 
 export const extractionBoardKey = ['extraction-board'] as const
 
@@ -109,8 +125,6 @@ export const extractTypeName = (type: ExtractType) => typeMeta[type]
 
 const missingEndpoint = (error: unknown) => error instanceof AuthError && error.status === 404
 
-const asText = (value: string | number | undefined) => (value === undefined ? '' : String(value))
-
 const fillCapabilities = (items: ExtractionCapability[]) => extractTypes.map((type) => (
   items.find((item) => item.type === type) ?? { type, supported: false }
 ))
@@ -123,7 +137,7 @@ const legacyCapabilities = (): ExtractionCapability[] => extractTypes.map((type)
 export const listExtractionCapabilities = async (signal?: AbortSignal) => {
   try {
     const result = await authorizedRequest(
-      (authorization) => media.get('/extraction-capabilities', {
+      (authorization) => gateway.get('/media/extraction-capabilities', {
         signal,
         headers: { Authorization: authorization },
       }),
@@ -217,44 +231,51 @@ const loadLegacyBoard = async (signal?: AbortSignal): Promise<ExtractionBoard> =
   }
 }
 
+const stepDetail = (step: z.infer<typeof extractionStepSchema>) => {
+  const parts = [taskStatusLabel(step.status)]
+  if (step.stage) parts.push(step.stage)
+  if (step.progress === 100) parts.push('100%')
+  if (step.assetCount !== null) parts.push(`${step.assetCount} 条素材`)
+  if (step.errorCode) parts.push(step.errorCode)
+  return parts.join(' · ')
+}
+
+const toExtractionTask = (item: z.infer<typeof extractionTaskSchema>): ExtractionTask => {
+  const steps = item.steps ?? []
+  const failed = steps.find((step) => step.errorCode)
+  return {
+    id: item.taskId,
+    projectId: item.projectId,
+    projectName: `项目 ${item.projectId}`,
+    episodeId: item.episodeId,
+    episodeNumber: 0,
+    episodeTitle: `剧集 ${item.episodeId}`,
+    types: steps.map((step) => step.type),
+    status: item.status,
+    createdAt: item.createdAt,
+    startedAt: item.startedAt,
+    finishedAt: item.finishedAt,
+    stageLabel: item.progress === 100 ? '已完成' : taskStatusLabel(item.status),
+    errorMessage: failed?.errorCode ?? null,
+    steps: steps.map((step) => ({ type: step.type, state: stepState(step.status), detail: stepDetail(step) })),
+  }
+}
+
 export const loadExtractionBoard = async (signal?: AbortSignal) => {
   try {
     const result = await authorizedRequest(
-      (authorization) => ai.get('/tasks', { signal, headers: { Authorization: authorization } }),
-      z.array(unifiedTaskSchema),
+      (authorization) => gateway.get('/ai/tasks', {
+        signal,
+        headers: { Authorization: authorization },
+        params: { pageNum: 1, pageSize: 100 },
+      }),
+      extractionTaskPageSchema,
     )
-    if (result.data.length === 0) return loadLegacyBoard(signal)
     return {
       source: 'unified' as const,
       failedReads: 0,
       pendingEpisodes: [],
-      tasks: result.data.flatMap((item) => {
-        const id = asText(item.taskId ?? item.id)
-        const episodeId = asText(item.episodeId)
-        if (!id || !episodeId) return []
-        const status = item.status ?? item.taskStatus ?? 'PENDING'
-        const types = item.extractTypes ?? []
-        return [{
-          id,
-          projectId: asText(item.projectId),
-          projectName: '',
-          episodeId,
-          episodeNumber: 0,
-          episodeTitle: '',
-          types,
-          status,
-          createdAt: item.createdAt ?? '',
-          startedAt: item.startedAt ?? null,
-          finishedAt: item.finishedAt ?? null,
-          stageLabel: status,
-          errorMessage: item.errorMessage ?? null,
-          steps: extractTypes.map((type) => ({
-            type,
-            state: types.includes(type) ? stepState(status) : 'unsupported' as const,
-            detail: types.includes(type) ? '' : '暂不支持',
-          })),
-        }]
-      }),
+      tasks: result.data.items.map(toExtractionTask),
     }
   } catch (error) {
     if (!missingEndpoint(error)) throw error
@@ -262,14 +283,40 @@ export const loadExtractionBoard = async (signal?: AbortSignal) => {
   }
 }
 
-const createUnifiedTask = async (projectId: string, episodeId: string, types: ExtractType[]) => {
+export const findShotTask = async (episodeId: string, signal?: AbortSignal) => {
   const result = await authorizedRequest(
-    (authorization) => ai.post('/tasks', {
-      projectId,
+    (authorization) => gateway.get('/ai/tasks', {
+      signal,
+      headers: { Authorization: authorization },
+      params: { episodeId, pageNum: 1, pageSize: 20 },
+    }),
+    extractionTaskPageSchema,
+  )
+  for (const item of result.data.items.slice(0, 5)) {
+    const detail = await getExtractionTask(item.taskId, signal)
+    if (detail.types.includes('SHOT')) return detail
+  }
+  return null
+}
+
+export const getExtractionTask = async (taskId: string, signal?: AbortSignal) => {
+  const result = await authorizedRequest(
+    (authorization) => gateway.get(`/ai/tasks/${taskId}`, {
+      signal,
+      headers: { Authorization: authorization },
+    }),
+    extractionTaskSchema,
+  )
+  return toExtractionTask(result.data)
+}
+
+const createUnifiedTask = async (episodeId: string, types: ExtractType[]) => {
+  const result = await authorizedRequest(
+    (authorization) => gateway.post('/ai/tasks', {
       episodeId,
       extractTypes: types,
     }, { headers: { Authorization: authorization } }),
-    unifiedTaskSchema,
+    extractionTaskSchema,
   )
   return result.data
 }
@@ -278,8 +325,8 @@ export const createExtractionTask = async (projectId: string, episodeId: string,
   const requested = types.filter((type) => extractTypes.includes(type))
   if (requested.length === 0) throw new AuthError('请至少选择一种已支持的提取类型。', 400, 'INVALID_REQUEST')
   try {
-    const created = await createUnifiedTask(projectId, episodeId, requested)
-    const id = asText(created.taskId ?? created.id)
+    const created = await createUnifiedTask(episodeId, requested)
+    const id = created.taskId
     if (id) return { id, source: 'unified' as const }
   } catch (error) {
     if (!missingEndpoint(error)) throw error
@@ -294,10 +341,10 @@ export const createExtractionTask = async (projectId: string, episodeId: string,
 export const retryExtractionTask = async (task: ExtractionTask) => {
   try {
     await authorizedRequest(
-      (authorization) => ai.post(`/tasks/${task.id}/retry`, undefined, {
+      (authorization) => gateway.post(`/ai/tasks/${task.id}/retry`, undefined, {
         headers: { Authorization: authorization },
       }),
-      unifiedTaskSchema,
+      extractionTaskSchema,
     )
     return
   } catch (error) {
