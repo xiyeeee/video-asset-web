@@ -26,15 +26,12 @@ export function CharacterWorkspace({
   }
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-      <div className="space-y-4">
+    <div className="grid gap-4 xl:h-full xl:min-h-0 xl:grid-cols-[1.2fr_0.8fr]">
+      <div className="space-y-4 xl:min-h-0 xl:overflow-y-auto xl:pr-1">
         <CharacterPreview projectId={projectId} episodeId={episodeId} title={title} contentType={contentType} seekTo={seekTo} />
         <CharacterExtractionPanel projectId={projectId} episodeId={episodeId} />
       </div>
-      <div className="space-y-3">
-        <h2 className="font-medium">人物素材</h2>
-        <CharacterGallery projectId={projectId} episodeId={episodeId} onSeek={seek} />
-      </div>
+      <CharacterGallery projectId={projectId} episodeId={episodeId} onSeek={seek} />
     </div>
   )
 }

@@ -36,7 +36,7 @@ export function AssetLibraryPage() {
 
   const projectId = target.projectId
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4 xl:h-[calc(100svh-7rem)] xl:min-h-0">
       <section className="flex flex-wrap items-center gap-4 rounded-2xl border border-white/10 bg-card p-4">
         <div className="min-w-0 flex-1">
           <Select value={projectId} onValueChange={target.setProject}>
@@ -76,15 +76,15 @@ export function AssetLibraryPage() {
         <EmptyState title="这个项目还没有集数" description="上传视频并完成解析后，才能看到分镜。" action={<Button asChild><Link to={`/projects/${projectId}`}>去上传</Link></Button>} />
       ) : null}
       {target.episodeId ? (
-        <Tabs value={tab} onValueChange={setTab}>
+        <Tabs value={tab} onValueChange={setTab} className="xl:min-h-0 xl:flex-1">
           <TabsList>
             <TabsTrigger value="frames">分镜</TabsTrigger>
             <TabsTrigger value="characters">人物</TabsTrigger>
           </TabsList>
-          <TabsContent value="frames">
+          <TabsContent value="frames" className="xl:min-h-0 xl:flex-1 xl:overflow-auto">
             <FrameGallery projectId={projectId} episodeId={target.episodeId} />
           </TabsContent>
-          <TabsContent value="characters">
+          <TabsContent value="characters" className="xl:min-h-0 xl:flex-1 xl:overflow-hidden">
             <CharacterWorkspace
               key={`${projectId}:${target.episodeId}`}
               projectId={projectId}

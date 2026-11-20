@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { EmptyState } from '@/components/common/EmptyState'
 import { Button } from '@/components/ui/button'
 import { characterErrorMessage, type CharacterAsset } from '@/services/characters/api'
@@ -72,6 +72,12 @@ export function CharacterGallery({
   const [downloadError, setDownloadError] = useState('')
   const reloading = useRef(false)
   const extracting = task.data?.status === 'PENDING' || task.data?.status === 'RUNNING'
+  const scrollerRef = useRef<HTMLDivElement>(null)
+  const pageCount = assets.data ? Math.max(1, Math.ceil(assets.data.total / assets.data.size)) : 1
+
+  useEffect(() => {
+    scrollerRef.current?.scrollTo({ top: 0 })
+  }, [page])
 
   const reload = (url: string) => {
     if (reloading.current) {
@@ -114,11 +120,21 @@ export function CharacterGallery({
     )
   }
 
-  const pageCount = Math.max(1, Math.ceil(assets.data.total / assets.data.size))
   return (
-    <div className="space-y-3">
-      {downloadError ? <p className="text-sm text-rose-300">{downloadError}</p> : null}
-      <div className="grid grid-cols-2 gap-3">
+    <div className="flex flex-col xl:h-full xl:min-h-0">
+      <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
+        <h2 className="font-medium">人物素材</h2>
+        {assets.data && pageCount > 1 ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span>第 {page} / {pageCount} 页</span>
+            <Button type="button" variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>上一页</Button>
+            <Button type="button" variant="outline" size="sm" disabled={page >= pageCount} onClick={() => setPage((current) => current + 1)}>下一页</Button>
+          </div>
+        ) : null}
+      </div>
+      <div ref={scrollerRef} className="xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1">
+      {downloadError ? <p className="mb-3 text-sm text-rose-300">{downloadError}</p> : null}
+      <div className={`grid grid-cols-2 gap-3 ${assets.isPlaceholderData ? 'opacity-60' : ''}`}>
         {assets.data.items.map((asset) => {
           const sourceTime = formatSourceTime(asset.timestampMs)
           return (
@@ -153,15 +169,7 @@ export function CharacterGallery({
           )
         })}
       </div>
-      {pageCount > 1 ? (
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>第 {assets.data.page} / {pageCount} 页</span>
-          <div className="flex gap-2">
-            <Button type="button" variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>上一页</Button>
-            <Button type="button" variant="outline" size="sm" disabled={page >= pageCount} onClick={() => setPage((current) => current + 1)}>下一页</Button>
-          </div>
-        </div>
-      ) : null}
+      </div>
     </div>
   )
 }

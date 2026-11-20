@@ -49,4 +49,9 @@ export const useCharacterAssets = (projectId: string, episodeId: string, page: n
     return Math.max(0, expires * 1000 - 15_000)
   },
   gcTime: 60_000,
+  placeholderData: (previous, previousQuery) => {
+    const key = previousQuery?.queryKey
+    if (!previous || !key || key[1] !== projectId || key[2] !== episodeId) return undefined
+    return previous
+  },
 })
