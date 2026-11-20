@@ -1,13 +1,12 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { EmptyState } from '@/components/common/EmptyState'
+import { OptionSelect } from '@/components/common/OptionSelect'
 import { Button } from '@/components/ui/button'
-import { VideoPlayer } from '@/components/video/VideoPlayer'
 import { DialogueLines } from '@/features/dialogue/DialogueLines'
 import { DialogueTimeline } from '@/features/dialogue/DialogueTimeline'
 import {
   activeDialogue,
-  nextSeek,
   openEpisode,
   speakerKey,
   speakerLabel,
@@ -16,11 +15,9 @@ import {
   type DialogueLine,
 } from '@/features/dialogue/timeline'
 import { useDialogueAssets, useDialogueTask } from '@/features/dialogue/use-dialogue'
-import { useEpisodePlayback } from '@/features/episodes/use-episodes'
 import { isCancelled } from '@/features/auth/auth-api'
 import { useExtractionCapabilities } from '@/features/extraction/use-extraction'
 import { dialogueAssetKey, dialogueErrorMessage, type DialogueAssetStatus } from '@/services/dialogue/api'
-import { episodeErrorMessage } from '@/services/episodes/api'
 import { createExtractionTask, extractionBoardKey, extractionFailureText, retryExtractionTask } from '@/services/extraction/api'
 
 export function DialogueAssets({ projectId, episodeId }: { projectId: string; episodeId: string }) {
@@ -31,31 +28,25 @@ export function DialogueAssets({ projectId, episodeId }: { projectId: string; ep
   const assetActive = dialogue.data?.status === 'PENDING' || dialogue.data?.status === 'RUNNING'
   const task = useDialogueTask(episodeId, assetActive)
   const [session, setSession] = useState(() => openEpisode(episodeId))
-  const [mediaSeconds, setMediaSeconds] = useState<number | null>(null)
-  const [mediaEpisode, setMediaEpisode] = useState(episodeId)
+  const [filterEpisode, setFilterEpisode] = useState(episodeId)
   const [speaker, setSpeaker] = useState('all')
   const [actionError, setActionError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   if (session.episodeId !== episodeId) setSession(switchEpisode(session, episodeId))
-  if (mediaEpisode !== episodeId) {
-    setMediaEpisode(episodeId)
-    setMediaSeconds(null)
+  if (filterEpisode !== episodeId) {
+    setFilterEpisode(episodeId)
     setSpeaker('all')
   }
 
   const lines = dialogue.data?.lines ?? []
   const visible = speaker === 'all' ? lines : lines.filter((line) => speakerKey(line.speakerId) === speaker)
-  const durationMs = timelineDurationMs(lines, mediaSeconds === null ? null : Math.round(mediaSeconds * 1000))
+  const durationMs = timelineDurationMs(lines, null)
   const activeIds = new Set(activeDialogue(visible, session.timeMs).map((line) => line.assetId))
   const busy = assetActive || task.data?.status === 'PENDING' || task.data?.status === 'RUNNING'
   const speakers = [...new Map(lines.map((line) => [speakerKey(line.speakerId), speakerLabel(line.speakerId)])).entries()]
 
   const choose = (line: DialogueLine) => {
-    setSession((current) => ({
-      ...current,
-      selectedId: line.assetId,
-      seek: nextSeek(current.seek, episodeId, line),
-    }))
+    setSession((current) => ({ ...current, selectedId: line.assetId }))
   }
 
   const submit = async () => {
@@ -100,93 +91,34 @@ export function DialogueAssets({ projectId, episodeId }: { projectId: string; ep
         }}
         onSubmit={() => void submit()}
       />
-      {supported ? (
-        <EpisodeVideo
-          projectId={projectId}
-          episodeId={episodeId}
-          seekTo={session.seek}
-          onTimeUpdate={(seconds) => setSession((current) => current.episodeId === episodeId ? { ...current, timeMs: Math.floor(seconds * 1000) } : current)}
-          onDuration={setMediaSeconds}
-        />
-      ) : null}
       {lines.length > 0 ? (
         <>
-          <label className="block max-w-xs text-sm text-muted-foreground">
-            说话人
-            <select
-              className="mt-1 w-full rounded-lg border border-white/10 bg-card px-3 py-2 text-sm text-foreground"
-              value={speakers.some(([key]) => key === speaker) || speaker === 'all' ? speaker : 'all'}
-              onChange={(event) => setSpeaker(event.target.value)}
-            >
-              <option value="all">全部说话人</option>
-              {speakers.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-            </select>
-          </label>
-          {visible.length > 0 && durationMs > 0 ? (
-            <DialogueTimeline
-              lines={visible}
-              durationMs={durationMs}
-              selectedId={session.selectedId}
-              activeIds={activeIds}
-              onChoose={choose}
-            />
-          ) : (
-            <p className="text-sm text-muted-foreground">这个说话人没有对白。</p>
-          )}
-          <DialogueLines lines={visible} selectedId={session.selectedId} activeIds={activeIds} onChoose={choose} />
+          <OptionSelect
+            label="说话人"
+            value={speakers.some(([key]) => key === speaker) || speaker === 'all' ? speaker : 'all'}
+            onValueChange={setSpeaker}
+            options={[
+              { value: 'all', label: '全部说话人' },
+              ...speakers.map(([key, label]) => ({ value: key, label })),
+            ]}
+          />
+          <div className="space-y-6">
+            {visible.length > 0 && durationMs > 0 ? (
+              <DialogueTimeline
+                lines={visible}
+                durationMs={durationMs}
+                selectedId={session.selectedId}
+                activeIds={activeIds}
+                onChoose={choose}
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">这个说话人没有对白。</p>
+            )}
+            <DialogueLines lines={visible} selectedId={session.selectedId} activeIds={activeIds} onChoose={choose} />
+          </div>
         </>
       ) : null}
     </div>
-  )
-}
-
-function EpisodeVideo({
-  projectId,
-  episodeId,
-  seekTo,
-  onTimeUpdate,
-  onDuration,
-}: {
-  projectId: string
-  episodeId: string
-  seekTo: { id: number; seconds: number } | null
-  onTimeUpdate: (seconds: number) => void
-  onDuration: (seconds: number) => void
-}) {
-  const playback = useEpisodePlayback(projectId, episodeId)
-  const [failedUrl, setFailedUrl] = useState<string | null>(null)
-  const refreshing = useRef(false)
-  const url = playback.data?.url
-  if (playback.isPending) return <p className="text-sm text-muted-foreground">正在获取原视频…</p>
-  if (playback.isError || !url || failedUrl === url) {
-    return (
-      <EmptyState
-        title="暂时无法预览原视频"
-        description={playback.isError ? episodeErrorMessage(playback.error) : '播放地址已失效，请重新获取。'}
-        action={<Button onClick={() => { setFailedUrl(null); void playback.refetch() }}>重新获取</Button>}
-      />
-    )
-  }
-  return (
-    <VideoPlayer
-      src={url}
-      type="video/mp4"
-      title="原视频"
-      caption="正在播放这一集的原视频。点击对白会跳到该句的开始时间。"
-      seekTo={seekTo}
-      onTimeUpdate={onTimeUpdate}
-      onDuration={onDuration}
-      onError={() => {
-        if (refreshing.current) {
-          setFailedUrl(url)
-          return
-        }
-        refreshing.current = true
-        void playback.refetch().finally(() => {
-          refreshing.current = false
-        })
-      }}
-    />
   )
 }
 

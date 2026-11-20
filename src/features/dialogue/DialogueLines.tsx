@@ -44,7 +44,7 @@ export function DialogueLines({
   }
 
   return (
-    <ol aria-label="台词" className="m-0 list-none space-y-2 p-0" onKeyDown={onKeyDown}>
+    <ol aria-label="台词" className="m-0 list-none space-y-3 px-0.5 py-1" onKeyDown={onKeyDown}>
       {lines.map((line) => {
         const playing = activeIds.has(line.assetId)
         const selected = line.assetId === selectedId
@@ -57,7 +57,7 @@ export function DialogueLines({
               }}
               type="button"
               aria-pressed={selected}
-              className={`w-full rounded-2xl border px-4 py-3 text-left ${playing ? 'border-violet-300 bg-violet-400/10' : 'border-white/10 bg-card'} ${selected ? 'outline outline-2 outline-offset-2 outline-violet-200' : ''}`}
+              className={`w-full rounded-2xl border px-4 py-3 text-left ${playing || selected ? 'border-violet-300 bg-violet-400/10' : 'border-white/10 bg-card'}`}
               onClick={() => onChoose(line)}
             >
               <span className="block text-xs text-violet-200">

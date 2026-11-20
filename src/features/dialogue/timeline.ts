@@ -130,6 +130,21 @@ export const placeDialogue = (lines: DialogueLine[], durationMs: number): Dialog
 export const timelineDurationMs = (lines: DialogueLine[], mediaDurationMs: number | null) =>
   Math.max(mediaDurationMs ?? 0, ...lines.map((line) => line.endMs), 0)
 
+/** 音轨上方的时间刻度，首尾固定，中间按整秒间隔。 */
+export const trackTicks = (durationMs: number) => {
+  if (durationMs <= 0) return [0]
+  const rough = durationMs / 4
+  const steps = [1_000, 2_000, 5_000, 10_000, 15_000, 30_000, 60_000, 120_000]
+  const step = steps.find((item) => item >= rough) ?? 120_000
+  const ticks = [0]
+  for (let time = step; time < durationMs; time += step) ticks.push(time)
+  const last = ticks[ticks.length - 1] ?? 0
+  if (last === durationMs) return ticks
+  if (ticks.length > 1 && durationMs - last < step * 0.65) ticks[ticks.length - 1] = durationMs
+  else ticks.push(durationMs)
+  return ticks
+}
+
 export const openEpisode = (episodeId: string): DialogueSession => ({
   episodeId,
   selectedId: null,

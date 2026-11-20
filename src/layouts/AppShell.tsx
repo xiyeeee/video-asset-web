@@ -85,8 +85,10 @@ export function AppShell() {
                 end={item.end}
                 className={({ isActive }) =>
                   cn(
-                    'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-slate-300 hover:bg-white/5',
-                    isActive && 'bg-primary text-white shadow-[0_8px_24px_rgb(139_92_246/0.35)]',
+                    'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-slate-300',
+                    isActive
+                      ? 'bg-primary text-white shadow-[0_8px_24px_rgb(139_92_246/0.35)] hover:bg-primary'
+                      : 'hover:bg-violet-400/15 hover:text-violet-100',
                     collapsed && 'justify-center px-0',
                   )
                 }
