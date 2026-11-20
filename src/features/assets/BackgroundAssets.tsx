@@ -2,20 +2,12 @@ import { useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { EmptyState } from '@/components/common/EmptyState'
 import { Button } from '@/components/ui/button'
-import { VideoPlayer } from '@/components/video/VideoPlayer'
 import { BackgroundCards } from '@/features/background/BackgroundCards'
-import {
-  nextBackgroundSeek,
-  openBackgroundEpisode,
-  switchBackgroundEpisode,
-  type BackgroundCard,
-} from '@/features/background/cards'
+import { openBackgroundEpisode, switchBackgroundEpisode, type BackgroundCard } from '@/features/background/cards'
 import { useBackgroundAssets, useBackgroundTask } from '@/features/background/use-background'
-import { useEpisodePlayback } from '@/features/episodes/use-episodes'
 import { isCancelled } from '@/features/auth/auth-api'
 import { useExtractionCapabilities } from '@/features/extraction/use-extraction'
 import { backgroundAssetKey, backgroundErrorMessage, type BackgroundAssetStatus } from '@/services/background/api'
-import { episodeErrorMessage } from '@/services/episodes/api'
 import { createExtractionTask, extractionBoardKey, extractionFailureText, retryExtractionTask } from '@/services/extraction/api'
 
 export function BackgroundAssets({ projectId, episodeId }: { projectId: string; episodeId: string }) {
@@ -36,11 +28,7 @@ export function BackgroundAssets({ projectId, episodeId }: { projectId: string; 
   const busy = assetActive || task.data?.status === 'PENDING' || task.data?.status === 'RUNNING'
 
   const choose = (card: BackgroundCard) => {
-    setSession((current) => ({
-      ...current,
-      selectedId: card.assetId,
-      seek: nextBackgroundSeek(current.seek, episodeId, card),
-    }))
+    setSession((current) => ({ ...current, selectedId: card.assetId }))
   }
 
   const reloadImage = (imageUrl: string) => {
@@ -97,7 +85,6 @@ export function BackgroundAssets({ projectId, episodeId }: { projectId: string; 
         }}
         onSubmit={() => void submit()}
       />
-      {supported ? <EpisodeVideo projectId={projectId} episodeId={episodeId} seekTo={session.seek} /> : null}
       {cards.length > 0 ? (
         <BackgroundCards
           cards={cards}
@@ -108,50 +95,6 @@ export function BackgroundAssets({ projectId, episodeId }: { projectId: string; 
         />
       ) : null}
     </div>
-  )
-}
-
-function EpisodeVideo({
-  projectId,
-  episodeId,
-  seekTo,
-}: {
-  projectId: string
-  episodeId: string
-  seekTo: { id: number; seconds: number; episodeId: string } | null
-}) {
-  const playback = useEpisodePlayback(projectId, episodeId)
-  const [failedUrl, setFailedUrl] = useState<string | null>(null)
-  const refreshing = useRef(false)
-  const url = playback.data?.url
-  if (playback.isPending) return <p className="text-sm text-muted-foreground">正在获取原视频…</p>
-  if (playback.isError || !url || failedUrl === url) {
-    return (
-      <EmptyState
-        title="暂时无法预览原视频"
-        description={playback.isError ? episodeErrorMessage(playback.error) : '播放地址已失效，请重新获取。'}
-        action={<Button onClick={() => { setFailedUrl(null); void playback.refetch() }}>重新获取</Button>}
-      />
-    )
-  }
-  return (
-    <VideoPlayer
-      src={url}
-      type="video/mp4"
-      title="原视频"
-      caption="正在播放这一集的原视频。点击来源时间会跳到候选帧。"
-      seekTo={seekTo && seekTo.episodeId === episodeId ? seekTo : null}
-      onError={() => {
-        if (refreshing.current) {
-          setFailedUrl(url)
-          return
-        }
-        refreshing.current = true
-        void playback.refetch().finally(() => {
-          refreshing.current = false
-        })
-      }}
-    />
   )
 }
 
