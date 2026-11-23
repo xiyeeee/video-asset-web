@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Upload } from 'lucide-react'
 import { Link } from 'react-router'
@@ -8,6 +8,7 @@ import { ExtractOptions } from '@/features/extraction/ExtractOptions'
 import { useExtractionCapabilities } from '@/features/extraction/use-extraction'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AuthError, isCancelled } from '@/features/auth/auth-api'
 import { formatClock, formatDateTime } from '@/lib/format'
 import {
@@ -62,6 +63,8 @@ export function EpisodeSection({ projectId }: { projectId: string }) {
   const [autoExtract, setAutoExtract] = useState(true)
   const [selectedTypes, setSelectedTypes] = useState<ExtractType[] | null>(null)
   const [localMessage, setLocalMessage] = useState('')
+  const [dragging, setDragging] = useState(false)
+  const [panel, setPanel] = useState<'upload' | 'episodes'>('episodes')
   const capabilities = useExtractionCapabilities()
   const uploadingRef = useRef(false)
   const abortRef = useRef<AbortController | null>(null)
@@ -75,9 +78,7 @@ export function EpisodeSection({ projectId }: { projectId: string }) {
   const selected = current ?? (picked?.projectId === projectId ? picked : null) ?? list.data?.items[0] ?? null
   const pageCount = Math.max(1, Math.ceil((list.data?.total ?? 0) / (list.data?.size ?? EPISODE_PAGE_SIZE)))
 
-  const pickFile = (event: ChangeEvent<HTMLInputElement>) => {
-    const next = event.target.files?.[0]
-    event.target.value = ''
+  const takeFile = (next: File | undefined) => {
     if (!next || uploadingRef.current) return
     setFile(next)
     setUploadKey(crypto.randomUUID())
@@ -88,6 +89,18 @@ export function EpisodeSection({ projectId }: { projectId: string }) {
     setSavedEpisodeId(null)
     setPhase('idle')
     setLocalMessage('')
+  }
+
+  const pickFile = (event: ChangeEvent<HTMLInputElement>) => {
+    const next = event.target.files?.[0]
+    event.target.value = ''
+    takeFile(next)
+  }
+
+  const dropFile = (event: DragEvent<HTMLLabelElement>) => {
+    event.preventDefault()
+    setDragging(false)
+    takeFile(event.dataTransfer.files[0])
   }
 
   const supported = (capabilities.data ?? []).filter((item) => item.supported).map((item) => item.type)
@@ -113,6 +126,7 @@ export function EpisodeSection({ projectId }: { projectId: string }) {
         const created = await createExtractionTask(projectId, savedEpisodeId, chosen)
         setTaskId(created.id)
         setPhase('task-created')
+        setPanel('episodes')
         await queryClient.invalidateQueries({ queryKey: extractionBoardKey })
       } catch (error) {
         if (!isCancelled(error)) {
@@ -175,9 +189,11 @@ export function EpisodeSection({ projectId }: { projectId: string }) {
       } else if (result.autoExtract) {
         setTaskId(result.taskId)
         setPhase('task-created')
+        setPanel('episodes')
         await queryClient.invalidateQueries({ queryKey: extractionBoardKey })
       } else {
         setPhase('uploaded')
+        setPanel('episodes')
       }
     } catch (error) {
       if (isCancelled(error)) return
@@ -193,18 +209,21 @@ export function EpisodeSection({ projectId }: { projectId: string }) {
     && (uploadError.code === 'VIDEO_UPLOAD_CONFLICT' || uploadError.status === 409)
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
-      <section className="space-y-3 rounded-2xl border border-white/10 bg-card p-4">
-        <div className="flex items-center justify-between gap-3">
-          <h3 className="font-medium">集数</h3>
-          <Button type="button" size="sm" variant="outline" disabled={busy} asChild>
-            <label>
-              <Upload />
-              选择 MP4
-              <input className="sr-only" type="file" accept=".mp4,video/mp4" disabled={busy} onChange={pickFile} />
-            </label>
-          </Button>
-        </div>
+    <div className="grid h-full min-h-0 gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
+      <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-card p-4">
+        <Tabs
+          value={panel}
+          onValueChange={(value) => {
+            if (value === 'upload' || value === 'episodes') setPanel(value)
+          }}
+          className="min-h-0 flex-1 gap-3 overflow-hidden"
+        >
+        <TabsList className="grid w-full shrink-0 grid-cols-2">
+          <TabsTrigger value="upload">上传</TabsTrigger>
+          <TabsTrigger value="episodes">集数</TabsTrigger>
+        </TabsList>
+        <TabsContent value="upload" className="min-h-0 overflow-y-auto">
+        <div className="space-y-3">
         <label className="block text-sm">
           集号
           <input
@@ -217,6 +236,30 @@ export function EpisodeSection({ projectId }: { projectId: string }) {
               setEpisodeNumber(event.target.value.trim())
             }}
           />
+        </label>
+        <label
+          className={`flex flex-col items-center gap-1 rounded-xl border border-dashed px-3 py-4 text-center ${dragging ? 'border-violet-300 bg-violet-400/10' : 'border-white/20 bg-background/40'} ${busy ? 'pointer-events-none opacity-60' : 'cursor-pointer'}`}
+          onDragEnter={(event) => {
+            event.preventDefault()
+            if (!busy) setDragging(true)
+          }}
+          onDragOver={(event) => {
+            event.preventDefault()
+            if (!busy) setDragging(true)
+          }}
+          onDragLeave={(event) => {
+            const next = event.relatedTarget
+            if (next instanceof Node && event.currentTarget.contains(next)) return
+            setDragging(false)
+          }}
+          onDrop={dropFile}
+        >
+          <Upload className="size-5 text-violet-200" />
+          <span className="text-sm">{dragging ? '松开即可选择' : '拖拽 MP4 到这里，或点击选择'}</span>
+          <span className="truncate text-xs text-muted-foreground">
+            {file ? `${file.name} · ${formatBytes(file.size)}` : '单个视频不超过 100 MiB'}
+          </span>
+          <input className="sr-only" type="file" accept=".mp4,video/mp4" disabled={busy} onChange={pickFile} />
         </label>
         <ExtractOptions
           capabilities={capabilities.data}
@@ -232,12 +275,6 @@ export function EpisodeSection({ projectId }: { projectId: string }) {
         {file || phase !== 'idle' ? (
           <div className="space-y-2 rounded-xl border border-white/10 bg-background/40 p-3">
             <p className="text-xs text-violet-200">{phaseLabel[phase]}</p>
-            {file ? (
-              <>
-                <p className="truncate text-sm">{file.name}</p>
-                <p className="text-xs text-muted-foreground">{formatBytes(file.size)}</p>
-              </>
-            ) : null}
             {phase === 'uploading' ? (
               <>
                 <Progress value={Math.round((progress ?? 0) * 100)} />
@@ -269,6 +306,10 @@ export function EpisodeSection({ projectId }: { projectId: string }) {
             </div>
           </div>
         ) : null}
+        </div>
+        </TabsContent>
+        <TabsContent value="episodes" className="flex min-h-0 flex-col overflow-hidden">
+        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
         {list.isLoading ? <p className="text-sm text-muted-foreground">正在读取集数…</p> : null}
         {list.isError ? (
           <EmptyState
@@ -304,8 +345,9 @@ export function EpisodeSection({ projectId }: { projectId: string }) {
             })}
           </div>
         ) : null}
+        </div>
         {pageCount > 1 ? (
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <div className="mt-3 flex shrink-0 items-center justify-between text-sm text-muted-foreground">
             <span>第 {page} / {pageCount} 页</span>
             <div className="flex gap-2">
               <Button type="button" variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>上一页</Button>
@@ -313,8 +355,12 @@ export function EpisodeSection({ projectId }: { projectId: string }) {
             </div>
           </div>
         ) : null}
+        </TabsContent>
+        </Tabs>
       </section>
-      <EpisodePreview projectId={projectId} episode={selected} />
+      <div className="min-h-0 self-start lg:sticky lg:top-0">
+        <EpisodePreview projectId={projectId} episode={selected} />
+      </div>
     </div>
   )
 }
@@ -365,7 +411,9 @@ function EpisodePreview({ projectId, episode }: { projectId: string; episode: Ep
 
   return (
     <div className="space-y-3">
-      {preview}
+      <div className="mx-auto w-full max-w-[calc((100svh-18rem)*16/9)]">
+        {preview}
+      </div>
       <div className="flex flex-wrap gap-2">
         <Button type="button" variant="outline" asChild>
           <Link to={`/analysis?project=${projectId}&episode=${episode.id}`}>解析这一集</Link>

@@ -68,7 +68,7 @@ export function ExtractOptions({
               <Button type="button" size="sm" variant="outline" onClick={onRetry}>重新读取</Button>
             </div>
           ) : null}
-          <div className="grid gap-2">
+          <div className="grid grid-cols-2 gap-2">
             {extractTypes.map((type) => {
               const capability = capabilities?.find((item) => item.type === type)
               const enabled = capability?.supported === true

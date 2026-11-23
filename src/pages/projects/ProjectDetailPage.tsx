@@ -31,8 +31,8 @@ export function ProjectDetailPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <section className="flex flex-wrap items-center gap-4 rounded-2xl border border-white/10 bg-card p-4">
+    <div className="flex flex-col gap-4 lg:h-[calc(100svh-7rem)] lg:min-h-0">
+      <section className="flex shrink-0 flex-wrap items-center gap-4 rounded-2xl border border-white/10 bg-card p-4">
         <ProjectCover name={project.name} className="size-20 rounded-xl text-2xl" />
         <div className="min-w-0 flex-1">
           <p className="text-xs text-muted-foreground">项目管理 / {project.name}</p>
@@ -42,7 +42,9 @@ export function ProjectDetailPage() {
         </div>
         <Button variant="outline" onClick={() => setEditing(true)}>编辑</Button>
       </section>
-      <EpisodeSection key={project.id} projectId={project.id} />
+      <div className="min-h-0 flex-1">
+        <EpisodeSection key={project.id} projectId={project.id} />
+      </div>
       <ProjectFormDialog open={editing} project={project} onOpenChange={setEditing} onSaved={() => setEditing(false)} />
     </div>
   )
