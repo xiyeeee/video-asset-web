@@ -1,7 +1,6 @@
 import { NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router'
 import {
   Bell,
-  Clapperboard,
   FolderKanban,
   LayoutDashboard,
   Library,
@@ -31,7 +30,6 @@ import { useUiStore } from '@/stores/ui-store'
 const navigation = [
   { to: '/', label: '工作台', icon: LayoutDashboard, end: true },
   { to: '/projects', label: '项目管理', icon: FolderKanban, end: false },
-  { to: '/analysis', label: '视频解析', icon: Clapperboard, end: false },
   { to: '/tasks', label: '任务中心', icon: ListTodo, end: false },
   { to: '/assets', label: '素材库', icon: Library, end: false },
   { to: '/story', label: '剧情脚本', icon: ScrollText, end: false },
@@ -185,4 +183,3 @@ function titleFor(pathname: string, projectName?: string): { heading: string; de
   }
   return map[pathname] ?? { heading: '未找到页面', description: '这个地址没有对应的工作台页面' }
 }
-
