@@ -32,7 +32,17 @@ const formatBytes = (bytes: number) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-const statusLabel = (status: string) => (status === 'PENDING' ? '待解析' : status)
+const extractionLabels: Record<NonNullable<EpisodeSummary['extractionStatus']>, string> = {
+  NOT_STARTED: '待解析',
+  QUEUED: '排队中',
+  RUNNING: '解析中',
+  SUCCEEDED: '已解析',
+  FAILED: '解析失败',
+}
+
+const statusLabel = (episode: EpisodeSummary) => episode.extractionStatus
+  ? extractionLabels[episode.extractionStatus]
+  : episode.status === 'PENDING' ? '已上传' : episode.status
 
 type UploadPhase = 'idle' | 'uploading' | 'uploaded' | 'upload-failed' | 'creating-task' | 'task-created' | 'task-failed'
 
@@ -127,7 +137,10 @@ export function EpisodeSection({ projectId }: { projectId: string }) {
         setTaskId(created.id)
         setPhase('task-created')
         setPanel('episodes')
-        await queryClient.invalidateQueries({ queryKey: extractionBoardKey })
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: extractionBoardKey }),
+          queryClient.invalidateQueries({ queryKey: episodeListPrefix(projectId) }),
+        ])
       } catch (error) {
         if (!isCancelled(error)) {
           setTaskError(error)
@@ -334,7 +347,7 @@ export function EpisodeSection({ projectId }: { projectId: string }) {
                 >
                   <span className="flex items-center justify-between gap-2">
                     <span className="truncate text-sm font-medium">第 {episode.episodeNumber} 集 · {episode.title}</span>
-                    <span className="shrink-0 text-xs text-violet-200">{statusLabel(episode.status)}</span>
+                    <span className="shrink-0 text-xs text-violet-200">{statusLabel(episode)}</span>
                   </span>
                   <span className="mt-1 block truncate text-xs text-muted-foreground">{episode.originalFilename}</span>
                   <span className="mt-1 block text-xs text-muted-foreground">

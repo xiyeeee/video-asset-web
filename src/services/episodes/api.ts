@@ -8,6 +8,7 @@ const episodeSchema = z.object({
   episodeNumber: z.number().int().positive(),
   title: z.string(),
   status: z.string(),
+  extractionStatus: z.enum(['NOT_STARTED', 'QUEUED', 'RUNNING', 'SUCCEEDED', 'FAILED']).optional(),
   originalFilename: z.string(),
   contentType: z.string(),
   sizeBytes: z.number().int().nonnegative(),

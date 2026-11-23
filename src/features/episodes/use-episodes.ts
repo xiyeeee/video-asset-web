@@ -16,6 +16,9 @@ export const useEpisodeList = (projectId: string, page: number, size = EPISODE_P
   queryKey: episodeQueryKey({ projectId, page, size }),
   queryFn: ({ signal }) => listEpisodes({ projectId, page, size }, signal),
   enabled: isProjectId(projectId),
+  refetchInterval: (query) => query.state.data?.items.some((episode) =>
+    episode.extractionStatus === 'QUEUED' || episode.extractionStatus === 'RUNNING',
+  ) ? 3_000 : false,
   placeholderData: (previous) => (previous?.items[0]?.projectId === projectId ? previous : undefined),
 })
 
