@@ -145,17 +145,17 @@ export function CharacterGallery({
       </div>
       <div ref={scrollerRef} className="xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1">
       {downloadError ? <p className="mb-3 text-sm text-rose-300">{downloadError}</p> : null}
-      <div className={`grid grid-cols-2 gap-3 ${assets.isPlaceholderData ? 'opacity-60' : ''}`}>
+      <div className={`grid grid-cols-3 gap-3 xl:grid-cols-5 ${assets.isPlaceholderData ? 'opacity-60' : ''}`}>
         {assets.data.items.map((asset) => {
           const sourceTime = formatSourceTime(asset.timestampMs)
           return (
             <article key={asset.id} className="overflow-hidden rounded-2xl border border-white/10 bg-card">
               {failedUrl === asset.url ? (
-                <div className="flex aspect-square items-center justify-center p-3">
+                <div className="flex h-36 items-center justify-center p-2">
                   <Button type="button" variant="outline" onClick={() => { setFailedUrl(null); void assets.refetch() }}>重新获取图片</Button>
                 </div>
               ) : (
-                <div className="flex aspect-square items-center justify-center p-3" style={cutoutBackground}>
+                <div className="flex h-36 items-center justify-center p-2" style={cutoutBackground}>
                   <img
                     src={asset.url}
                     alt={`人物素材 ${sourceTime}`}
