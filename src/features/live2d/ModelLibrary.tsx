@@ -1,13 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
-import { Download, Maximize2, RotateCcw } from 'lucide-react'
+import { Download, Maximize2, Pencil, RotateCcw, Trash2 } from 'lucide-react'
 import { AuthError, isCancelled } from '@/features/auth/auth-api'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import {
+  deleteLive2dCharacter,
   fetchLive2dPackage,
   getLive2dVersion,
   listLive2dCharacters,
   listLive2dVersions,
   live2dErrorMessage,
+  renameLive2dCharacter,
   type Live2dVersionDetail,
 } from '@/services/live2d/api'
 import {
@@ -28,7 +32,7 @@ const savedTime = (value: string) => {
 }
 
 const libraryMessage = (error: unknown, fallback: string) => {
-  if (error instanceof AuthError && error.status === 404) return '历史模型接口尚未接入，或记录不存在。'
+  if (error instanceof AuthError && error.status === 404) return '角色或模型记录不存在，可能已被删除。'
   const message = live2dErrorMessage(error)
   return message || fallback
 }
@@ -60,6 +64,10 @@ export function ModelLibrary({
   const [notice, setNotice] = useState('')
   const [downloadError, setDownloadError] = useState('')
   const [downloading, setDownloading] = useState(false)
+  const [characterAction, setCharacterAction] = useState<{ kind: 'rename' | 'delete'; character: Live2dLibraryCharacter } | null>(null)
+  const [characterName, setCharacterName] = useState('')
+  const [characterActionError, setCharacterActionError] = useState('')
+  const [savingCharacterAction, setSavingCharacterAction] = useState(false)
   const viewportRef = useRef<Live2DViewportHandle>(null)
   const downloadAbortRef = useRef<AbortController | null>(null)
   const characterRequestRef = useRef(0)
@@ -177,6 +185,49 @@ export function ModelLibrary({
     setVersionId(nextVersionId)
   }
 
+  const openCharacterAction = (kind: 'rename' | 'delete', character: Live2dLibraryCharacter) => {
+    setCharacterName(character.name)
+    setCharacterActionError('')
+    setCharacterAction({ kind, character })
+  }
+
+  const submitCharacterAction = async () => {
+    if (!characterAction || savingCharacterAction) return
+    const { character, kind } = characterAction
+    setSavingCharacterAction(true)
+    setCharacterActionError('')
+    try {
+      if (kind === 'rename') {
+        await renameLive2dCharacter(projectId, character.characterId, characterName.trim())
+        setCharacters((previous) => previous.map((item) => item.characterId === character.characterId
+          ? { ...item, name: characterName.trim() }
+          : item))
+      } else {
+        await deleteLive2dCharacter(projectId, character.characterId)
+        const remaining = characters.filter((item) => item.characterId !== character.characterId)
+        setCharacters(remaining)
+        if (character.characterId === characterId) {
+          const nextCharacter = remaining[0] ?? null
+          setCharacterId(nextCharacter?.characterId ?? null)
+          setPreferredVersionId(null)
+          setVersions([])
+          setVersionId(null)
+          setDetail(null)
+          setPreview(null)
+          setVersionStatus(nextCharacter ? 'loading' : 'idle')
+          setCharacterStatus(nextCharacter ? 'ready' : 'empty')
+        }
+      }
+      setCharacterAction(null)
+    } catch (error: unknown) {
+      if (!isCancelled(error)) {
+        setCharacterActionError(libraryMessage(error, kind === 'rename' ? '角色名称修改失败。' : '角色删除失败。'))
+      }
+    } finally {
+      setSavingCharacterAction(false)
+    }
+  }
+
   const retryPreview = () => {
     setDetailError('')
     setPreview(null)
@@ -263,15 +314,38 @@ export function ModelLibrary({
           {characters.map((character) => {
             const selected = character.characterId === characterId
             return (
-              <button
+              <div
                 key={character.characterId}
-                type="button"
-                className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2 text-left ${selected ? 'border-violet-400 bg-violet-500/15' : 'border-white/10'}`}
-                onClick={() => chooseCharacter(character.characterId)}
+                className={`group flex w-full items-center gap-2 rounded-xl border p-2 ${selected ? 'border-violet-400 bg-violet-500/15' : 'border-white/10'}`}
               >
-                <Avatar name={character.name} url={character.avatarUrl} />
-                <span className="min-w-0 truncate text-sm">{character.name}</span>
-              </button>
+                <button
+                  type="button"
+                  aria-pressed={selected}
+                  className="flex min-w-0 flex-1 items-center gap-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+                  onClick={() => chooseCharacter(character.characterId)}
+                >
+                  <Avatar name={character.name} url={character.avatarUrl} />
+                  <span className="min-w-0 truncate text-sm">{character.name}</span>
+                </button>
+                <div className="flex shrink-0 gap-1 opacity-70 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                  <Button
+                    type="button"
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label={`修改角色 ${character.name}`}
+                    title="修改角色名称"
+                    onClick={() => openCharacterAction('rename', character)}
+                  ><Pencil /></Button>
+                  <Button
+                    type="button"
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label={`删除角色 ${character.name}`}
+                    title="删除角色"
+                    onClick={() => openCharacterAction('delete', character)}
+                  ><Trash2 className="text-rose-300" /></Button>
+                </div>
+              </div>
             )
           })}
         </div>
@@ -343,6 +417,47 @@ export function ModelLibrary({
         {downloadError ? <p className="text-sm text-rose-300">{downloadError}</p> : null}
         {notice ? <p className="text-sm text-violet-100">{notice}</p> : null}
       </section>
+      <Dialog open={characterAction !== null} onOpenChange={(open) => {
+        if (!open && !savingCharacterAction) setCharacterAction(null)
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{characterAction?.kind === 'rename' ? '修改角色名称' : '删除角色'}</DialogTitle>
+            <DialogDescription>
+              {characterAction?.kind === 'rename'
+                ? '修改后只更新角色名称，历史版本保留生成时的模型名称。'
+                : '删除后该角色及其历史版本将从列表中隐藏，模型文件不会被物理删除。'}
+            </DialogDescription>
+          </DialogHeader>
+          {characterAction?.kind === 'rename' ? (
+            <Input
+              autoFocus
+              maxLength={150}
+              value={characterName}
+              aria-label="角色名称"
+              onChange={(event) => setCharacterName(event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  void submitCharacterAction()
+                }
+              }}
+            />
+          ) : null}
+          {characterActionError ? <p role="alert" className="text-sm text-rose-300">{characterActionError}</p> : null}
+          <DialogFooter>
+            <Button type="button" variant="outline" disabled={savingCharacterAction} onClick={() => setCharacterAction(null)}>取消</Button>
+            <Button
+              type="button"
+              variant={characterAction?.kind === 'delete' ? 'destructive' : 'default'}
+              disabled={savingCharacterAction || (characterAction?.kind === 'rename' && !characterName.trim())}
+              onClick={() => void submitCharacterAction()}
+            >
+              {savingCharacterAction ? '正在保存…' : characterAction?.kind === 'rename' ? '保存修改' : '确认删除'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

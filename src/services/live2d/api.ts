@@ -169,6 +169,27 @@ export const listLive2dCharacters = (projectId: string, signal?: AbortSignal) =>
     signal,
   )
 
+const emptyResultSchema = z.null()
+
+export const renameLive2dCharacter = (projectId: string, characterId: string, name: string) =>
+  authorizedRequest(
+    (authorization) => gateway.patch(
+      `${live2dProjectPath(projectId)}/live2d/characters/${encodeURIComponent(characterId)}`,
+      { name },
+      { headers: { Authorization: authorization } },
+    ),
+    emptyResultSchema,
+  )
+
+export const deleteLive2dCharacter = (projectId: string, characterId: string) =>
+  authorizedRequest(
+    (authorization) => gateway.delete(
+      `${live2dProjectPath(projectId)}/live2d/characters/${encodeURIComponent(characterId)}`,
+      { headers: { Authorization: authorization } },
+    ),
+    emptyResultSchema,
+  )
+
 export const listLive2dVersions = (projectId: string, characterId: string, signal?: AbortSignal) =>
   listHistory<Live2dLibraryVersion>(
     `${live2dProjectPath(projectId)}/live2d/characters/${encodeURIComponent(characterId)}/versions`,
@@ -299,6 +320,7 @@ export const live2dErrorMessage = (error: unknown) => {
     return '找不到当前项目中的资源或任务。'
   }
   if (error.status === 413) return '图片不能超过 10 MiB。'
+  if (error.code === 'LIVE2D_CHARACTER_BUSY') return '角色还有生成或待保存任务，请等待任务完成后再删除。'
   if (error.status === 409 || error.code === 'TASK_CONFLICT') return failureText.TASK_CONFLICT
   if (error.code === 'INVALID_REQUEST' || error.code === 'REQUEST_INVALID') return failureText.REQUEST_INVALID
   if (failureText[error.code]) return failureText[error.code]
