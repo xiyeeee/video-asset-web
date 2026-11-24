@@ -22,7 +22,7 @@ import { useLive2dTask } from '@/features/live2d/use-live2d-task'
 import type { CharacterAsset } from '@/services/characters/api'
 import type { EpisodeSummary } from '@/services/episodes/api'
 import { live2dErrorMessage, live2dFailureText, uploadLive2dImage } from '@/services/live2d/api'
-import { SAMPLE_MODEL_URL, live2dImageIssue, live2dModelSaved, live2dTaskBody, type Live2dSource } from '@/services/live2d/contract'
+import { SAMPLE_MODEL_URL, live2dImageIssue, live2dModelSaved, live2dTaskBody, type Live2dHistoryFocus, type Live2dSource } from '@/services/live2d/contract'
 
 type ReferenceImage =
   | { kind: 'local'; file: File; previewUrl: string; uploadFileId: string | null }
@@ -70,7 +70,7 @@ function Live2DWorkbench({
   const [preview, setPreview] = useState<ModelPreview | null>(null)
   const [preparing, setPreparing] = useState(false)
   const [panel, setPanel] = useState<'generate' | 'library'>('generate')
-  const [libraryFocus, setLibraryFocus] = useState<string | null>(null)
+  const [libraryFocus, setLibraryFocus] = useState<Live2dHistoryFocus | null>(null)
   const [libraryVisit, setLibraryVisit] = useState(0)
   const keepLibraryFocus = useRef(false)
   const previewUrlRef = useRef('')
@@ -148,8 +148,10 @@ function Live2DWorkbench({
 
   const failure = task.task?.status === 'FAILED'
     ? live2dFailureText(task.task.error?.code ?? null, task.task.error?.message ?? '')
-    : task.error
-  const saved = live2dModelSaved(task.task?.status ?? null, task.task?.result ?? null)
+    : task.task?.saveStatus === 'FAILED'
+      ? live2dFailureText(task.task.saveErrorCode, '模型已生成，但没有保存到历史。')
+      : task.error
+  const saved = live2dModelSaved(task.task)
 
   const openPanel = (value: string) => {
     if (value === 'library') {
@@ -165,10 +167,10 @@ function Live2DWorkbench({
   }
 
   const viewSaved = () => {
-    const modelId = task.task?.result?.modelId
-    if (!modelId) return
+    const result = task.task?.result
+    if (!result?.characterId || !result.versionId) return
     keepLibraryFocus.current = true
-    setLibraryFocus(modelId)
+    setLibraryFocus({ characterId: result.characterId, versionId: result.versionId })
     setLibraryVisit((current) => current + 1)
     setPanel('library')
   }
@@ -193,7 +195,7 @@ function Live2DWorkbench({
         <Button type="button" className="ml-auto" onClick={() => openPanel('generate')}>生成新模型</Button>
       </div>
       {panel === 'library' ? (
-        <ModelLibrary key={`${libraryVisit}:${libraryFocus ?? ''}`} projectId={projectId} focusModelId={libraryFocus} onCreate={() => openPanel('generate')} />
+        <ModelLibrary key={`${libraryVisit}:${libraryFocus?.characterId ?? ''}:${libraryFocus?.versionId ?? ''}`} projectId={projectId} focus={libraryFocus} onCreate={() => openPanel('generate')} />
       ) : null}
       {panel === 'generate' ? (
       <div className="flex min-h-0 flex-1 flex-col gap-4">

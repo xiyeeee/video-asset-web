@@ -69,28 +69,51 @@ const motionCatalog: { id: MotionTestId; label: string; parameters: string[] }[]
   { id: 'head', label: '转头', parameters: ['ParamAngleX'] },
 ]
 
+export const live2dSaveStatuses = ['NOT_STARTED', 'SAVING', 'SAVED', 'FAILED'] as const
+
+export type Live2dSaveStatus = (typeof live2dSaveStatuses)[number]
+
+export type Live2dHistoryFocus = {
+  characterId: string
+  versionId: string
+}
+
 export type Live2dLibraryCharacter = {
   characterId: string
   name: string
   avatarUrl: string | null
-  modelIds: readonly string[]
+  latestVersionId: string
 }
 
 export type Live2dLibraryVersion = {
   versionId: string
-  modelId: string
   versionNumber: number
-  name: string | null
-  thumbnailUrl: string | null
+  modelName: string
   savedAt: string
+  status: 'AVAILABLE'
+  thumbnailUrl: string | null
 }
 
 export const isLive2dSettled = (status: Live2dStatus) => status === 'SUCCEEDED' || status === 'FAILED'
 
-export const live2dModelSaved = (
-  status: Live2dStatus | null,
-  result: { modelId: string } | null,
-) => status === 'SUCCEEDED' && result !== null && result.modelId.length > 0
+/** 生成结束且保存也有了结果，才算这次任务可以收起。保存中要继续等推送。 */
+export const isLive2dFinished = (task: { status: Live2dStatus; saveStatus: Live2dSaveStatus }) => {
+  if (task.status === 'FAILED') return true
+  if (task.status !== 'SUCCEEDED') return false
+  return task.saveStatus === 'SAVED' || task.saveStatus === 'FAILED'
+}
+
+export const live2dModelSaved = (task: {
+  status: Live2dStatus
+  saveStatus: Live2dSaveStatus
+  result: { characterId: string | null; versionId: string | null } | null
+} | null) => Boolean(
+  task
+  && task.status === 'SUCCEEDED'
+  && task.saveStatus === 'SAVED'
+  && task.result?.characterId
+  && task.result.versionId,
+)
 
 export const orderLive2dVersions = (versions: readonly Live2dLibraryVersion[]) =>
   versions.toSorted((left, right) => {
@@ -98,12 +121,12 @@ export const orderLive2dVersions = (versions: readonly Live2dLibraryVersion[]) =
     return right.savedAt.localeCompare(left.savedAt)
   })
 
-export const characterForModel = (
+export const characterForHistory = (
   characters: readonly Live2dLibraryCharacter[],
-  modelId: string | null,
+  focus: Live2dHistoryFocus | null,
 ) => {
-  if (modelId) {
-    const matched = characters.find((item) => item.modelIds.includes(modelId))
+  if (focus) {
+    const matched = characters.find((item) => item.characterId === focus.characterId)
     if (matched) return { character: matched, matched: true }
   }
   return { character: characters[0] ?? null, matched: false }
@@ -111,21 +134,41 @@ export const characterForModel = (
 
 export const versionForSelection = (
   versions: readonly Live2dLibraryVersion[],
-  modelId: string | null,
+  versionId: string | null,
 ) => {
   const ordered = orderLive2dVersions(versions)
-  if (modelId) {
-    const matched = ordered.find((item) => item.modelId === modelId)
+  if (versionId) {
+    const matched = ordered.find((item) => item.versionId === versionId)
     if (matched) return matched
   }
   return ordered[0] ?? null
 }
 
+export const hasMoreLive2dPage = (loaded: number, pageCount: number, total: number) =>
+  pageCount > 0 && loaded < total
+
 export const isCurrentLive2dRequest = (started: number, current: number) => started === current
 
-export const live2dPackageName = (versionNumber: number, name: string | null) => {
-  const label = (name ?? '').replace(/[\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim()
-  return `V${versionNumber}-${label || 'model'}.zip`
+const zipFileName = (value: string) => {
+  const name = value.replace(/[\r\n]/g, '').trim()
+  if (!name || name.includes('/') || name.includes('\\') || name.includes('..')) return ''
+  return name.toLowerCase().endsWith('.zip') ? name : `${name}.zip`
+}
+
+/** 下载文件名以响应头为准，缺失时用版本 ID 兜底。 */
+export const live2dDownloadName = (header: string, versionId: string) => {
+  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(header)
+  if (encoded?.[1]) {
+    try {
+      const name = zipFileName(decodeURIComponent(encoded[1].trim().replaceAll('"', '')))
+      if (name) return name
+    } catch {
+      // 编码无效时改用普通 filename。
+    }
+  }
+  const quoted = /filename="([^"]+)"/i.exec(header)
+  const plain = quoted?.[1] ?? /filename=([^;]+)/i.exec(header)?.[1]
+  return (plain ? zipFileName(plain) : '') || `live2d-${versionId}.zip`
 }
 
 export const live2dStatusLabel = (status: Live2dStatus) => statusLabels[status]

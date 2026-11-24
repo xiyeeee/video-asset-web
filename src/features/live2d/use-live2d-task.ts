@@ -8,7 +8,7 @@ import {
   type Live2dTask,
 } from '@/services/live2d/api'
 import {
-  isLive2dSettled,
+  isLive2dFinished,
   live2dEventsPath,
   shouldApplyLive2dTask,
   type Live2dTaskBody,
@@ -58,7 +58,7 @@ const watchLive2dTask = (
       if (!task || task.taskId !== taskId) return
       attempts = 0
       onTask(task)
-      if (isLive2dSettled(task.status)) finish(task)
+      if (isLive2dFinished(task)) finish(task)
     }
     current.onclose = () => {
       if (settled || signal.aborted || socket !== current) return
@@ -89,7 +89,7 @@ export function useLive2dTask(projectId: string | undefined) {
   useEffect(() => () => abortRef.current?.abort(), [])
 
   const submit = async (body: Live2dTaskBody): Promise<Live2dTask | null> => {
-    if (!projectId || submitting || (task && !isLive2dSettled(task.status))) return null
+    if (!projectId || submitting || (task && !isLive2dFinished(task))) return null
     const controller = new AbortController()
     abortRef.current?.abort()
     abortRef.current = controller
@@ -101,7 +101,7 @@ export function useLive2dTask(projectId: string | undefined) {
       if (!shouldApplyLive2dTask(startedProjectId, projectRef.current)) return null
       setTask(created)
       setSubmitting(false)
-      if (isLive2dSettled(created.status)) return created
+      if (isLive2dFinished(created)) return created
       const token = useSession.getState().token
       if (!token) {
         setError('登录已失效，请重新登录。')
@@ -122,7 +122,7 @@ export function useLive2dTask(projectId: string | undefined) {
     }
   }
 
-  const busy = submitting || (task !== null && !isLive2dSettled(task.status))
+  const busy = submitting || (task !== null && !isLive2dFinished(task))
   const clear = () => {
     setTask(null)
     setError('')

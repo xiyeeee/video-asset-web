@@ -11,11 +11,11 @@ import {
   type Live2dVersionDetail,
 } from '@/services/live2d/api'
 import {
-  characterForModel,
+  characterForHistory,
   isCurrentLive2dRequest,
-  live2dPackageName,
   orderLive2dVersions,
   versionForSelection,
+  type Live2dHistoryFocus,
   type Live2dLibraryCharacter,
   type Live2dLibraryVersion,
 } from '@/services/live2d/contract'
@@ -35,16 +35,16 @@ const libraryMessage = (error: unknown, fallback: string) => {
 
 export function ModelLibrary({
   projectId,
-  focusModelId,
+  focus,
   onCreate,
 }: {
   projectId: string
-  focusModelId: string | null
+  focus: Live2dHistoryFocus | null
   onCreate: () => void
 }) {
   const [characters, setCharacters] = useState<Live2dLibraryCharacter[]>([])
   const [characterId, setCharacterId] = useState<string | null>(null)
-  const [preferredModelId, setPreferredModelId] = useState<string | null>(focusModelId)
+  const [preferredVersionId, setPreferredVersionId] = useState<string | null>(focus?.versionId ?? null)
   const [characterStatus, setCharacterStatus] = useState<'loading' | 'ready' | 'empty' | 'error'>('loading')
   const [characterError, setCharacterError] = useState('')
   const [characterAttempt, setCharacterAttempt] = useState(0)
@@ -76,7 +76,7 @@ export function ModelLibrary({
     void listLive2dCharacters(projectId, controller.signal)
       .then((items) => {
         if (!isCurrentLive2dRequest(requestId, characterRequestRef.current)) return
-        const selection = characterForModel(items, focusModelId)
+        const selection = characterForHistory(items, focus)
         setCharacters(items)
         setVersionStatus(selection.character ? 'loading' : 'idle')
         setVersions([])
@@ -84,11 +84,11 @@ export function ModelLibrary({
         setDetail(null)
         setPreview(null)
         setCharacterId(selection.character?.characterId ?? null)
-        setPreferredModelId(selection.matched ? focusModelId : null)
+        setPreferredVersionId(selection.matched && focus ? focus.versionId : null)
         setCharacterStatus(items.length === 0 ? 'empty' : 'ready')
-        if (focusModelId && !selection.matched && items.length > 0) {
-          setNotice('没有在历史列表里找到刚保存的版本，已打开最新记录。')
-        }
+        setNotice(focus && !selection.matched && items.length > 0
+          ? '没有在历史列表里找到刚保存的版本，已打开最新记录。'
+          : '')
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted || isCancelled(error)) return
@@ -97,7 +97,7 @@ export function ModelLibrary({
         setCharacterError(libraryMessage(error, '角色列表加载失败。'))
       })
     return () => controller.abort()
-  }, [projectId, focusModelId, characterAttempt])
+  }, [projectId, focus, characterAttempt])
 
   useEffect(() => {
     if (!characterId) return
@@ -108,7 +108,7 @@ export function ModelLibrary({
       .then((items) => {
         if (!isCurrentLive2dRequest(requestId, versionRequestRef.current)) return
         const ordered = orderLive2dVersions(items)
-        const picked = versionForSelection(ordered, preferredModelId)
+        const picked = versionForSelection(ordered, preferredVersionId)
         setVersions(ordered)
         setDetail(null)
         setPreview(null)
@@ -116,6 +116,9 @@ export function ModelLibrary({
         setDownloadError('')
         setVersionId(picked?.versionId ?? null)
         setVersionStatus('ready')
+        if (preferredVersionId && picked?.versionId !== preferredVersionId) {
+          setNotice('没有在历史列表里找到刚保存的版本，已打开最新记录。')
+        }
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted || isCancelled(error)) return
@@ -124,17 +127,18 @@ export function ModelLibrary({
         setVersionError(libraryMessage(error, '历史版本加载失败。'))
       })
     return () => controller.abort()
-  }, [projectId, characterId, preferredModelId, versionAttempt])
+  }, [projectId, characterId, preferredVersionId, versionAttempt])
 
   useEffect(() => {
     downloadAbortRef.current?.abort()
     versionIdRef.current = versionId
-    if (!versionId) return
+    if (!characterId || !versionId) return
     const controller = new AbortController()
     const requestId = detailRequestRef.current + 1
     detailRequestRef.current = requestId
+    const selectedCharacterId = characterId
     const selectedVersionId = versionId
-    void getLive2dVersion(projectId, selectedVersionId, controller.signal)
+    void getLive2dVersion(projectId, selectedCharacterId, selectedVersionId, controller.signal)
       .then((next) => {
         if (!isCurrentLive2dRequest(requestId, detailRequestRef.current)) return
         if (next.versionId !== selectedVersionId) return
@@ -149,11 +153,11 @@ export function ModelLibrary({
         setDetailError(libraryMessage(error, '模型预览加载失败。'))
       })
     return () => controller.abort()
-  }, [projectId, versionId, detailAttempt])
+  }, [projectId, characterId, versionId, detailAttempt])
 
   const chooseCharacter = (nextCharacterId: string) => {
     if (nextCharacterId === characterId) return
-    setPreferredModelId(null)
+    setPreferredVersionId(null)
     setVersionStatus('loading')
     setVersions([])
     setVersionId(null)
@@ -189,19 +193,19 @@ export function ModelLibrary({
     setDownloadError('')
     try {
       let current = detail
-      let file = await readPackage(current.packageUrl, controller.signal)
+      let file = await readPackage(current.downloadUrl, current.versionId, controller.signal)
       if (versionIdRef.current !== selectedVersionId) return
       if (file === null) {
-        current = await getLive2dVersion(projectId, selectedVersionId, controller.signal)
+        current = await getLive2dVersion(projectId, current.characterId, selectedVersionId, controller.signal)
         if (versionIdRef.current !== selectedVersionId || current.versionId !== selectedVersionId) return
         setDetail(current)
-        file = await fetchLive2dPackage(current.packageUrl, controller.signal)
+        file = await fetchLive2dPackage(current.downloadUrl, current.versionId, controller.signal)
       }
       if (versionIdRef.current !== selectedVersionId) return
-      const url = URL.createObjectURL(file)
+      const url = URL.createObjectURL(file.blob)
       const anchor = document.createElement('a')
       anchor.href = url
-      anchor.download = live2dPackageName(current.versionNumber, current.name)
+      anchor.download = file.filename
       anchor.click()
       URL.revokeObjectURL(url)
     } catch (error) {
@@ -299,7 +303,7 @@ export function ModelLibrary({
                 <Avatar name={`V${version.versionNumber}`} url={version.thumbnailUrl} />
                 <span className="min-w-0">
                   <span className="block text-sm font-medium">V{version.versionNumber}</span>
-                  {version.name ? <span className="block truncate text-xs text-violet-100">{version.name}</span> : null}
+                  <span className="block truncate text-xs text-violet-100">{version.modelName}</span>
                   <span className="block text-xs text-muted-foreground">{savedTime(version.savedAt)}</span>
                 </span>
               </button>
@@ -343,9 +347,9 @@ export function ModelLibrary({
   )
 }
 
-const readPackage = async (url: string, signal: AbortSignal) => {
+const readPackage = async (url: string, versionId: string, signal: AbortSignal) => {
   try {
-    return await fetchLive2dPackage(url, signal)
+    return await fetchLive2dPackage(url, versionId, signal)
   } catch (error) {
     if (error instanceof AuthError && error.status === 404) return null
     throw error

@@ -3,10 +3,14 @@ import { z } from 'zod'
 import { AuthError, authorizedRequest } from '@/features/auth/auth-api'
 import { useSession } from '@/features/auth/session'
 import {
+  hasMoreLive2dPage,
+  live2dDownloadName,
+  live2dSaveStatuses,
   live2dStatuses,
   modelRequestNeedsAuth,
   type Live2dLibraryCharacter,
   type Live2dLibraryVersion,
+  type Live2dSaveStatus,
   type Live2dStatus,
   type Live2dTaskBody,
 } from './contract'
@@ -16,6 +20,8 @@ const stageSchema = z.string().min(1).nullable()
 const resultSchema = z.object({
   modelId: z.string().min(1),
   modelEntryUrl: z.string().min(1),
+  characterId: z.string().min(1).nullable(),
+  versionId: z.string().min(1).nullable(),
 }).nullable()
 
 const errorSchema = z.object({
@@ -30,6 +36,8 @@ const taskSchema = z.object({
   stage: stageSchema,
   result: resultSchema,
   error: errorSchema,
+  saveStatus: z.enum(live2dSaveStatuses),
+  saveErrorCode: z.string().min(1).nullable(),
 })
 
 const uploadSchema = z.object({
@@ -40,8 +48,10 @@ export type Live2dTask = {
   taskId: string
   status: Live2dStatus
   stage: string | null
-  result: { modelId: string; modelEntryUrl: string } | null
+  result: { modelId: string; modelEntryUrl: string; characterId: string | null; versionId: string | null } | null
   error: { code: string; message: string; stage: string | null } | null
+  saveStatus: Live2dSaveStatus
+  saveErrorCode: string | null
 }
 
 const gateway = axios.create({ baseURL: '/api', timeout: 15_000 })
@@ -77,63 +87,120 @@ export const parseLive2dTask = (value: unknown) => {
   return parsed.success ? parsed.data : null
 }
 
+const optionalUrl = z.string().min(1).nullable()
+
 const characterSchema = z.object({
   characterId: z.string().min(1),
   name: z.string().min(1),
-  avatarUrl: z.string().min(1).nullable(),
-  modelIds: z.array(z.string().min(1)),
+  avatarUrl: optionalUrl,
+  latestVersionId: z.string().min(1),
 })
 
 const versionSchema = z.object({
   versionId: z.string().min(1),
-  modelId: z.string().min(1),
   versionNumber: z.number().int().positive(),
-  name: z.string().min(1).nullable(),
-  thumbnailUrl: z.string().min(1).nullable(),
+  modelName: z.string().min(1),
   savedAt: z.string().min(1),
+  status: z.literal('AVAILABLE'),
+  thumbnailUrl: optionalUrl,
 })
 
-const versionDetailSchema = versionSchema.extend({
+const versionDetailSchema = z.object({
+  projectId: z.string().min(1),
   characterId: z.string().min(1),
+  sourceAssetId: z.string().min(1),
+  taskId: z.string().min(1),
+  version: versionSchema,
   modelEntryUrl: z.string().min(1),
-  packageUrl: z.string().min(1),
+  previewExpiresInSeconds: z.number().int().positive(),
+  downloadUrl: z.string().min(1),
 })
 
-const characterListSchema = z.object({ items: z.array(characterSchema) })
-const versionListSchema = z.object({ items: z.array(versionSchema) })
+const historyPageSchema = <T extends z.ZodType>(item: T) => z.object({
+  items: z.array(item),
+  page: z.number().int().positive(),
+  size: z.number().int().positive(),
+  total: z.number().int().nonnegative(),
+})
 
-export type Live2dVersionDetail = Live2dLibraryVersion & {
+const characterPageSchema = historyPageSchema(characterSchema)
+const versionPageSchema = historyPageSchema(versionSchema)
+
+export type Live2dVersionDetail = {
   characterId: string
+  versionId: string
+  versionNumber: number
+  modelName: string
+  thumbnailUrl: string | null
+  savedAt: string
   modelEntryUrl: string
-  packageUrl: string
+  downloadUrl: string
+}
+
+const HISTORY_PAGE_SIZE = 100
+
+const listHistory = async <T>(
+  path: string,
+  schema: z.ZodType<{ items: T[]; total: number }>,
+  signal?: AbortSignal,
+) => {
+  const items: T[] = []
+  let page = 1
+  while (page <= 50) {
+    const result = await authorizedRequest(
+      (authorization) => gateway.get(path, {
+        signal,
+        params: { page, size: HISTORY_PAGE_SIZE },
+        headers: { Authorization: authorization },
+      }),
+      schema,
+    )
+    items.push(...result.data.items)
+    if (!hasMoreLive2dPage(items.length, result.data.items.length, result.data.total)) return items
+    page += 1
+  }
+  return items
 }
 
 export const listLive2dCharacters = (projectId: string, signal?: AbortSignal) =>
-  authorizedRequest(
-    (authorization) => gateway.get(`${live2dProjectPath(projectId)}/live2d/characters`, {
-      signal,
-      headers: { Authorization: authorization },
-    }),
-    characterListSchema,
-  ).then((result) => result.data.items satisfies Live2dLibraryCharacter[])
+  listHistory<Live2dLibraryCharacter>(
+    `${live2dProjectPath(projectId)}/live2d/characters`,
+    characterPageSchema,
+    signal,
+  )
 
 export const listLive2dVersions = (projectId: string, characterId: string, signal?: AbortSignal) =>
-  authorizedRequest(
-    (authorization) => gateway.get(
-      `${live2dProjectPath(projectId)}/live2d/characters/${encodeURIComponent(characterId)}/versions`,
-      { signal, headers: { Authorization: authorization } },
-    ),
-    versionListSchema,
-  ).then((result) => result.data.items satisfies Live2dLibraryVersion[])
+  listHistory<Live2dLibraryVersion>(
+    `${live2dProjectPath(projectId)}/live2d/characters/${encodeURIComponent(characterId)}/versions`,
+    versionPageSchema,
+    signal,
+  )
 
-export const getLive2dVersion = (projectId: string, versionId: string, signal?: AbortSignal) =>
+export const getLive2dVersion = (
+  projectId: string,
+  characterId: string,
+  versionId: string,
+  signal?: AbortSignal,
+) =>
   authorizedRequest(
     (authorization) => gateway.get(
-      `${live2dProjectPath(projectId)}/live2d/versions/${encodeURIComponent(versionId)}`,
+      `${live2dProjectPath(projectId)}/live2d/characters/${encodeURIComponent(characterId)}/versions/${encodeURIComponent(versionId)}`,
       { signal, headers: { Authorization: authorization } },
     ),
     versionDetailSchema,
-  ).then((result) => result.data satisfies Live2dVersionDetail)
+  ).then((result) => {
+    const version = result.data.version
+    return {
+      characterId: result.data.characterId,
+      versionId: version.versionId,
+      versionNumber: version.versionNumber,
+      modelName: version.modelName,
+      thumbnailUrl: version.thumbnailUrl,
+      savedAt: version.savedAt,
+      modelEntryUrl: result.data.modelEntryUrl,
+      downloadUrl: result.data.downloadUrl,
+    } satisfies Live2dVersionDetail
+  })
 
 const apiPath = (url: string) => {
   const resource = new URL(url, window.location.origin)
@@ -142,14 +209,23 @@ const apiPath = (url: string) => {
   return path.startsWith('/api/') ? path.slice(4) : path
 }
 
-export const fetchLive2dPackage = async (url: string, signal: AbortSignal) => {
+const dispositionHeader = (headers: unknown) => {
+  if (!headers || typeof headers !== 'object' || !('get' in headers) || typeof headers.get !== 'function') return ''
+  const value: unknown = headers.get('content-disposition')
+  return typeof value === 'string' ? value : ''
+}
+
+export const fetchLive2dPackage = async (url: string, versionId: string, signal: AbortSignal) => {
   const path = apiPath(url)
   const needsAuth = modelRequestNeedsAuth(url, window.location.origin)
   try {
     if (path === null) {
       const response = await fetch(url, { signal })
       if (!response.ok) throw new AuthError('模型包下载失败', response.status, 'UNKNOWN')
-      return await response.blob()
+      return {
+        blob: await response.blob(),
+        filename: live2dDownloadName(response.headers.get('content-disposition') ?? '', versionId),
+      }
     }
     const token = useSession.getState().token
     if (needsAuth && !token) throw new AuthError('请先登录', 401, 'UNAUTHENTICATED')
@@ -159,7 +235,10 @@ export const fetchLive2dPackage = async (url: string, signal: AbortSignal) => {
       timeout: 120_000,
       headers: needsAuth && token ? { Authorization: `Bearer ${token}` } : {},
     })
-    return response.data
+    return {
+      blob: response.data,
+      filename: live2dDownloadName(dispositionHeader(response.headers), versionId),
+    }
   } catch (error) {
     if (error instanceof AuthError) throw error
     if (axios.isAxiosError(error)) {
@@ -193,6 +272,12 @@ const failureText: Record<string, string> = {
   CUBISM_CORE_UNAVAILABLE: '服务端缺少 Live2D 核心库，暂时不能校验模型。',
   MOC3_VALIDATION_FAILED: '模型网格校验失败。',
   ARTIFACT_WRITE_FAILED: '模型文件没有保存成功，请重试。',
+  ARTIFACT_MISSING: '模型包缺失，无法保存到历史。',
+  ARTIFACT_INVALID: '模型包已损坏，请重新生成。',
+  LIVE2D_SAVE_TIMEOUT: '模型已生成，但保存超时。',
+  HISTORY_SOURCE_UNAVAILABLE: '找不到原来源，无法保存到历史。',
+  HISTORY_CHARACTER_UNAVAILABLE: '关联角色已不可用，无法保存到历史。',
+  LIVE2D_SAVE_NOT_RETRYABLE: '这次保存不能重试。',
   LIVE2D_TASK_FAILED: 'Live2D 生成失败，请重试。',
   TASK_CONFLICT: '这个任务和已有参数冲突，请重新提交。',
   TASK_NOT_FOUND: '没有找到这个生成任务。',

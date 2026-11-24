@@ -1,13 +1,15 @@
 import assert from 'node:assert/strict'
 import {
   availableMotionTests,
-  characterForModel,
+  characterForHistory,
+  hasMoreLive2dPage,
   indexModelDirectory,
   isCurrentLive2dRequest,
+  isLive2dFinished,
   isLive2dSettled,
+  live2dDownloadName,
   live2dEventsPath,
   live2dModelSaved,
-  live2dPackageName,
   live2dTaskBody,
   orderLive2dVersions,
   versionForSelection,
@@ -87,27 +89,36 @@ const extra = { name: 'other.model3.json', webkitRelativePath: 'Sample/other.mod
 assert.throws(() => indexModelDirectory([entry, extra]))
 
 const characters = [
-  { characterId: '7', name: '许宁', avatarUrl: null, modelIds: ['419', '420'] },
-  { characterId: '8', name: '林夏', avatarUrl: null, modelIds: ['500'] },
+  { characterId: '7', name: '许宁', avatarUrl: null, latestVersionId: '420' },
+  { characterId: '8', name: '林夏', avatarUrl: null, latestVersionId: '500' },
 ]
-assert.equal(characterForModel(characters, '420').character?.characterId, '7')
-assert.equal(characterForModel(characters, '420').matched, true)
-assert.equal(characterForModel(characters, 'missing').character?.characterId, '7')
-assert.equal(characterForModel(characters, null).matched, false)
-assert.equal(characterForModel([], '419').character, null)
+assert.equal(characterForHistory(characters, { characterId: '8', versionId: '500' }).character?.characterId, '8')
+assert.equal(characterForHistory(characters, { characterId: '8', versionId: '500' }).matched, true)
+assert.equal(characterForHistory(characters, { characterId: '9', versionId: '1' }).character?.characterId, '7')
+assert.equal(characterForHistory(characters, { characterId: '9', versionId: '1' }).matched, false)
+assert.equal(characterForHistory(characters, null).matched, false)
+assert.equal(characterForHistory([], { characterId: '7', versionId: '420' }).character, null)
 
 const versions = [
-  { versionId: 'v1', modelId: '419', versionNumber: 1, name: '初版', thumbnailUrl: null, savedAt: '2026-11-24T01:00:00Z' },
-  { versionId: 'v2', modelId: '420', versionNumber: 2, name: null, thumbnailUrl: null, savedAt: '2026-11-24T02:00:00Z' },
+  { versionId: '410', versionNumber: 1, modelName: '许宁', thumbnailUrl: null, savedAt: '2026-11-24T01:00:00Z', status: 'AVAILABLE' as const },
+  { versionId: '419', versionNumber: 2, modelName: '许宁', thumbnailUrl: null, savedAt: '2026-11-24T02:00:00Z', status: 'AVAILABLE' as const },
 ]
 assert.deepEqual(orderLive2dVersions(versions).map((item) => item.versionNumber), [2, 1])
-assert.equal(versionForSelection(versions, '419')?.versionId, 'v1')
-assert.equal(versionForSelection(versions, null)?.versionId, 'v2')
-assert.equal(live2dModelSaved('SUCCEEDED', { modelId: '419' }), true)
-assert.equal(live2dModelSaved('RUNNING', null), false)
-assert.equal(live2dModelSaved('FAILED', null), false)
+assert.equal(versionForSelection(versions, '410')?.versionId, '410')
+assert.equal(versionForSelection(versions, null)?.versionId, '419')
+assert.equal(live2dModelSaved({ status: 'SUCCEEDED', saveStatus: 'SAVED', result: { characterId: '31', versionId: '419' } }), true)
+assert.equal(live2dModelSaved({ status: 'SUCCEEDED', saveStatus: 'SAVING', result: { characterId: null, versionId: null } }), false)
+assert.equal(live2dModelSaved({ status: 'SUCCEEDED', saveStatus: 'FAILED', result: null }), false)
+assert.equal(live2dModelSaved(null), false)
+assert.equal(isLive2dFinished({ status: 'SUCCEEDED', saveStatus: 'SAVING' }), false)
+assert.equal(isLive2dFinished({ status: 'SUCCEEDED', saveStatus: 'SAVED' }), true)
+assert.equal(isLive2dFinished({ status: 'FAILED', saveStatus: 'NOT_STARTED' }), true)
+assert.equal(hasMoreLive2dPage(20, 20, 21), true)
+assert.equal(hasMoreLive2dPage(21, 1, 21), false)
+assert.equal(hasMoreLive2dPage(0, 0, 0), false)
 assert.equal(isCurrentLive2dRequest(2, 2), true)
 assert.equal(isCurrentLive2dRequest(2, 3), false)
-assert.equal(live2dPackageName(2, '许宁/夜'), 'V2-许宁 夜.zip')
+assert.equal(live2dDownloadName('attachment; filename="live2d-419.zip"', '419'), 'live2d-419.zip')
+assert.equal(live2dDownloadName('', '419'), 'live2d-419.zip')
 
 console.log('live2d contract ok')
