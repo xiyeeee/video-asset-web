@@ -14,6 +14,7 @@ import { AssetLibraryPage } from '@/pages/asset-library/AssetLibraryPage'
 import { StoryPage } from '@/pages/story-editor/StoryPage'
 import { ExportPage } from '@/pages/export-center/ExportPage'
 import { TaskCenterPage } from '@/pages/tasks/TaskCenterPage'
+import { Live2DPage } from '@/pages/live2d/Live2DPage'
 
 export function AppRoutes() {
   return (
@@ -30,6 +31,7 @@ export function AppRoutes() {
             <Route path="analysis" element={<AnalysisPage />} />
             <Route path="tasks" element={<TaskCenterPage />} />
             <Route path="assets" element={<AssetLibraryPage />} />
+            <Route path="live2d" element={<Live2DPage />} />
             <Route path="story" element={<StoryPage />} />
             <Route path="export" element={<ExportPage />} />
             <Route path="*" element={<EmptyState title="页面不存在" description="请从左侧导航进入工作台。" action={<Button asChild><Link to="/">回到工作台</Link></Button>} />} />

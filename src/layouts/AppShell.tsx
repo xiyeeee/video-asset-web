@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router'
 import {
   Bell,
+  Box,
   FolderKanban,
   LayoutDashboard,
   Library,
@@ -32,6 +33,7 @@ const navigation = [
   { to: '/projects', label: '项目管理', icon: FolderKanban, end: false },
   { to: '/tasks', label: '任务中心', icon: ListTodo, end: false },
   { to: '/assets', label: '素材库', icon: Library, end: false },
+  { to: '/live2d', label: 'Live2D 工作台', icon: Box, end: false },
   { to: '/story', label: '剧情脚本', icon: ScrollText, end: false },
   { to: '/export', label: '导出中心', icon: Package, end: false },
 ]
@@ -178,6 +180,7 @@ function titleFor(pathname: string, projectName?: string): { heading: string; de
     '/analysis': { heading: '视频解析', description: '查看首帧解析状态，并在失败后重试' },
     '/tasks': { heading: '任务中心', description: '查看素材提取进度，并在失败后重试' },
     '/assets': { heading: '素材库', description: '按集查看分镜、人物和其他提取结果' },
+    '/live2d': { heading: 'Live2D 工作台', description: '选择角色图，生成并预览 Live2D 模型' },
     '/story': { heading: '剧情脚本', description: '修正角色、编辑台词并预览剧情 JSON' },
     '/export': { heading: '导出中心', description: '配置演示导出任务并下载元数据清单' },
   }

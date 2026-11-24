@@ -17,3 +17,15 @@
 | `GET /api/media/episodes/{episodeId}/assets?type=BACKGROUND` | 按镜头返回背景候选。超过一页时用第一条的 `sourceTaskId` 固定后续页。签名图片过期后重新获取 |
 
 进度只在接口返回 `100` 时显示百分之百。签名地址只用于当次预览，不写入本地存储或日志。
+
+## Live2D
+
+图片上传和生成任务仍走网关信封 `{code,message,data}` 与 Bearer。仓库里还没有现成的图片上传接口，因此本地图使用下面这条新路径，不复用会创建剧集的视频上传。
+
+| 接口 | 行为 |
+| --- | --- |
+| `POST /api/projects/{projectId}/files` | multipart 字段 `file`。成功 `data.uploadFileId`。只接受 PNG、JPEG、WebP，不超过 10 MiB |
+| `POST /api/projects/{projectId}/live2d/tasks` | `{modelName, uploadFileId}` 或 `{modelName, sourceAssetId}`，两者只提交一个 |
+| `GET /api/projects/{projectId}/live2d/tasks/{taskId}` | `taskId`、`status`（`QUEUED`、`RUNNING`、`SUCCEEDED`、`FAILED`）、可选 `stage`。成功时 `result.modelId` 与 `result.modelEntryUrl` |
+
+`modelEntryUrl` 指向 `.model3.json`。相对引用按该文件所在目录解析并沿用路径中的项目模型票据，无需附带 Bearer。票据 10 分钟过期，届时用 Bearer 重新查询任务获取新入口。任务进入 `SUCCEEDED` 或 `FAILED` 后停止轮询。

@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Live2D 官方核心和本地示例模型不入库
+public/live2d/live2dcubismcore.min.js
+public/live2d/samples/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
