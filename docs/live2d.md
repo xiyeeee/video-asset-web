@@ -1,6 +1,6 @@
 # Live2D 工作台
 
-页面在 `/live2d`。本地图片走 `POST /api/projects/{projectId}/files` 取得 `uploadFileId`，人物素材使用 `sourceAssetId`。生成与查询见 `docs/frontend-api.md` 的 Live2D 一节。Python 与 Java 的内部任务字段见 `video-asset-ai/docs/live2d-python.md`。页面只消费 Java 网关返回的 `taskId`、`status`、`stage`、`result.modelId` 和 `result.modelEntryUrl`。
+页面在 `/live2d`。本地图片走 `POST /api/projects/{projectId}/files` 取得 `uploadFileId`，人物素材使用 `sourceAssetId`。生成与状态推送见 `docs/frontend-api.md` 的 Live2D 一节。Python 与 Java 的内部任务字段见 `video-asset-ai/docs/live2d-python.md`。页面只消费 Java 网关返回的 `taskId`、`status`、`stage`、`result.modelId` 和 `result.modelEntryUrl`。提交后通过 WebSocket 接收状态，终态后关闭连接。
 
 ## 本地启动
 
@@ -24,7 +24,7 @@ cp -R ../video-asset-ai/outputs/live2d-eval/attempts/alternative/adapter-runtime
 ## 人工验收
 
 1. 登录后打开 Live2D 工作台，确认左侧导航与素材库同级，并默认停在「图片转 Live2D」。「动作生成」和「生成动作」保持不可用。
-2. 切换项目后，参考图、任务状态和画布应清空，旧轮询不再改当前项目。
+2. 切换项目后，参考图、任务状态和画布应清空，旧的任务连接不再改当前项目。
 3. 上传 PNG、JPEG 或 WebP，或从当前项目人物素材选择一张图，填写模型名称后提交。生成过程中按钮不可再次提交。
 4. 任务成功后，中间画布加载 `result.modelEntryUrl`。相对的 moc、贴图和动作文件都能显示。失败原因出现在右侧，预览加载失败出现在画布上，两者分开。
 5. 模型加载后，只显示它实际具备的眨眼、张嘴、转头按钮，点击后能看到对应变化。

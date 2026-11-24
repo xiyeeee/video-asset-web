@@ -20,12 +20,13 @@
 
 ## Live2D
 
-图片上传和生成任务仍走网关信封 `{code,message,data}` 与 Bearer。仓库里还没有现成的图片上传接口，因此本地图使用下面这条新路径，不复用会创建剧集的视频上传。
+图片上传和生成任务走网关信封 `{code,message,data}` 与 Bearer。本地图使用下面的上传路径，不复用会创建剧集的视频上传。
 
 | 接口 | 行为 |
 | --- | --- |
 | `POST /api/projects/{projectId}/files` | multipart 字段 `file`。成功 `data.uploadFileId`。只接受 PNG、JPEG、WebP，不超过 10 MiB |
 | `POST /api/projects/{projectId}/live2d/tasks` | `{modelName, uploadFileId}` 或 `{modelName, sourceAssetId}`，两者只提交一个 |
-| `GET /api/projects/{projectId}/live2d/tasks/{taskId}` | `taskId`、`status`（`QUEUED`、`RUNNING`、`SUCCEEDED`、`FAILED`）、可选 `stage`。成功时 `result.modelId` 与 `result.modelEntryUrl` |
+| `GET /api/projects/{projectId}/live2d/tasks/{taskId}` | 读取当前快照。成功时 `result.modelId` 与 `result.modelEntryUrl`。票据过期时用它换新入口 |
+| `WebSocket /api/projects/{projectId}/live2d/tasks/{taskId}/events` | 提交后的状态推送。子协议为 `video-asset.bearer` 和访问令牌。终态后关闭 |
 
-`modelEntryUrl` 指向 `.model3.json`。相对引用按该文件所在目录解析并沿用路径中的项目模型票据，无需附带 Bearer。票据 10 分钟过期，届时用 Bearer 重新查询任务获取新入口。任务进入 `SUCCEEDED` 或 `FAILED` 后停止轮询。
+`modelEntryUrl` 指向 `.model3.json`。相对引用按该文件所在目录解析并沿用路径中的项目模型票据，无需附带 Bearer。票据 10 分钟过期，届时用 Bearer 重新查询任务获取新入口。任务进入 `SUCCEEDED` 或 `FAILED` 后关闭 WebSocket。

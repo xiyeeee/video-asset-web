@@ -64,6 +64,11 @@ export const createLive2dTask = ({ projectId, ...body }: Live2dTaskBody, signal?
     taskSchema,
   ).then((result) => result.data)
 
+export const parseLive2dTask = (value: unknown) => {
+  const parsed = taskSchema.safeParse(value)
+  return parsed.success ? parsed.data : null
+}
+
 export const getLive2dTask = (projectId: string, taskId: string, signal?: AbortSignal) =>
   authorizedRequest(
     (authorization) => gateway.get(`${live2dProjectPath(projectId)}/live2d/tasks/${encodeURIComponent(taskId)}`, {

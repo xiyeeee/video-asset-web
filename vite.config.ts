@@ -15,7 +15,10 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       proxy: {
-        '/api': env.API_PROXY_TARGET || 'http://127.0.0.1:18080',
+        '/api': {
+          target: env.API_PROXY_TARGET || 'http://127.0.0.1:18080',
+          ws: true,
+        },
       },
     },
   }

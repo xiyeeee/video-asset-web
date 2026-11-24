@@ -1,4 +1,4 @@
-/** Live2D 任务契约。页面只提交一个图片来源，并在任务终态后停止轮询。 */
+/** Live2D 任务契约。页面只提交一个图片来源，并在任务终态后关闭状态连接。 */
 
 export const live2dStatuses = ['QUEUED', 'RUNNING', 'SUCCEEDED', 'FAILED'] as const
 
@@ -8,9 +8,10 @@ export const LIVE2D_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp'] as c
 
 export const MAX_LIVE2D_IMAGE_BYTES = 10 * 1024 * 1024
 
-export const LIVE2D_POLL_INTERVAL_MS = 2500
-
 export const SAMPLE_MODEL_URL = '/live2d/samples/model/model.model3.json'
+
+export const live2dEventsPath = (projectId: string, taskId: string) =>
+  `/api/projects/${encodeURIComponent(projectId)}/live2d/tasks/${encodeURIComponent(taskId)}/events`
 
 const stageLabels: Record<string, string> = {
   PREPARING: '准备原图',

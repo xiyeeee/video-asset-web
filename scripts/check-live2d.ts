@@ -3,6 +3,7 @@ import {
   availableMotionTests,
   indexModelDirectory,
   isLive2dSettled,
+  live2dEventsPath,
   live2dTaskBody,
   modelRequestNeedsAuth,
   motionTarget,
@@ -30,6 +31,9 @@ assert.equal(isLive2dSettled('FAILED'), true)
 assert.equal(shouldApplyLive2dTask('12', '12'), true)
 assert.equal(shouldApplyLive2dTask('12', '13'), false)
 assert.equal(shouldApplyLive2dTask('12', undefined), false)
+assert.equal(live2dEventsPath('12', 'abc'), '/api/projects/12/live2d/tasks/abc/events')
+assert.equal(live2dEventsPath('12', 'a b').includes('access_token'), false)
+assert.equal(live2dEventsPath('12', 'a b').includes(' '), false)
 
 const modelRoot = `/api/projects/12/live2d/models/1/files/${'a'.repeat(64)}`
 const modelEntry = `${modelRoot}/runtime/model.model3.json`
