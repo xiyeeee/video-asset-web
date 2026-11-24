@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { Eye, RotateCw, Smile } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -36,6 +36,13 @@ export type ModelPreview =
   | { id: string; kind: 'url'; url: string; sample: boolean }
   | { id: string; kind: 'files'; files: readonly File[]; sample: boolean }
 
+export type Live2DViewportHandle = {
+  resetView: () => void
+  frameElement: () => HTMLDivElement | null
+}
+
+const defaultEmptyText = '生成成功后，这里会渲染实际的 Live2D 模型。也可以先导入模型或加载示例。'
+
 type ParameterRange = { id: string; min: number; max: number; fallback: number }
 
 type CubismCoreModel = {
@@ -67,8 +74,14 @@ const previewErrorText = (error: unknown) => {
   return '模型预览加载失败。'
 }
 
-export function Live2DViewport({ preview }: { preview: ModelPreview | null }) {
+export const Live2DViewport = forwardRef<Live2DViewportHandle, {
+  preview: ModelPreview | null
+  emptyText?: string
+  showCenter?: boolean
+  onRetry?: () => void
+}>(function Live2DViewport({ preview, emptyText = defaultEmptyText, showCenter = true, onRetry }, ref) {
   const hostRef = useRef<HTMLDivElement>(null)
+  const frameRef = useRef<HTMLDivElement>(null)
   const centerRef = useRef<(() => void) | null>(null)
   const rangesRef = useRef<ParameterRange[]>([])
   const motionRef = useRef<MotionTest | null>(null)
@@ -77,6 +90,11 @@ export function Live2DViewport({ preview }: { preview: ModelPreview | null }) {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [interactivePreview, setInteractivePreview] = useState<ModelPreview | null>(null)
+
+  useImperativeHandle(ref, () => ({
+    resetView: () => centerRef.current?.(),
+    frameElement: () => frameRef.current,
+  }), [])
 
   useEffect(() => {
     const host = hostRef.current
@@ -247,23 +265,28 @@ export function Live2DViewport({ preview }: { preview: ModelPreview | null }) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
-      <div className="relative min-h-64 flex-1 overflow-hidden rounded-xl border border-white/10 bg-[linear-gradient(45deg,#24304a_25%,transparent_25%),linear-gradient(-45deg,#24304a_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#24304a_75%),linear-gradient(-45deg,transparent_75%,#24304a_75%)] bg-[length:28px_28px] bg-[position:0_0,0_14px,14px_-14px,-14px_0] bg-[#12182c]">
+      <div ref={frameRef} className="relative min-h-64 flex-1 overflow-hidden rounded-xl border border-white/10 bg-[linear-gradient(45deg,#24304a_25%,transparent_25%),linear-gradient(-45deg,#24304a_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#24304a_75%),linear-gradient(-45deg,transparent_75%,#24304a_75%)] bg-[length:28px_28px] bg-[position:0_0,0_14px,14px_-14px,-14px_0] bg-[#12182c]">
         <div ref={hostRef} className="absolute inset-0" />
         {preview?.sample ? (
           <span className="absolute top-3 left-3 rounded-full bg-violet-500/80 px-2 py-0.5 text-xs text-white">示例模型</span>
         ) : null}
-        {preview && interactivePreview === preview && !loading && !error ? (
+        {showCenter && preview && interactivePreview === preview && !loading && !error ? (
           <Button type="button" size="sm" variant="outline" className="absolute top-3 right-3" onClick={() => centerRef.current?.()}>
             居中
           </Button>
         ) : null}
         {!preview && !loading ? (
           <div className="absolute inset-0 grid place-items-center px-6 text-center text-sm text-muted-foreground">
-            生成成功后，这里会渲染实际的 Live2D 模型。也可以先导入模型或加载示例。
+            {emptyText}
           </div>
         ) : null}
         {loading ? <div className="absolute inset-0 grid place-items-center text-sm text-violet-100">正在加载模型…</div> : null}
-        {error ? <div className="absolute inset-x-4 bottom-4 rounded-lg bg-rose-950/80 px-3 py-2 text-sm text-rose-100">{error}</div> : null}
+        {error ? (
+          <div className="absolute inset-x-4 bottom-4 flex items-center justify-between gap-3 rounded-lg bg-rose-950/80 px-3 py-2 text-sm text-rose-100">
+            <span>{error}</span>
+            {onRetry ? <Button type="button" size="sm" variant="outline" onClick={onRetry}>重试</Button> : null}
+          </div>
+        ) : null}
       </div>
       <div className="flex flex-wrap gap-2">
         {tests.map((test) => {
@@ -278,4 +301,4 @@ export function Live2DViewport({ preview }: { preview: ModelPreview | null }) {
       </div>
     </div>
   )
-}
+})

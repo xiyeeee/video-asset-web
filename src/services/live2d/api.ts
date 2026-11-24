@@ -1,7 +1,15 @@
 import axios from 'axios'
 import { z } from 'zod'
 import { AuthError, authorizedRequest } from '@/features/auth/auth-api'
-import { live2dStatuses, type Live2dStatus, type Live2dTaskBody } from './contract'
+import { useSession } from '@/features/auth/session'
+import {
+  live2dStatuses,
+  modelRequestNeedsAuth,
+  type Live2dLibraryCharacter,
+  type Live2dLibraryVersion,
+  type Live2dStatus,
+  type Live2dTaskBody,
+} from './contract'
 
 const stageSchema = z.string().min(1).nullable()
 
@@ -67,6 +75,100 @@ export const createLive2dTask = ({ projectId, ...body }: Live2dTaskBody, signal?
 export const parseLive2dTask = (value: unknown) => {
   const parsed = taskSchema.safeParse(value)
   return parsed.success ? parsed.data : null
+}
+
+const characterSchema = z.object({
+  characterId: z.string().min(1),
+  name: z.string().min(1),
+  avatarUrl: z.string().min(1).nullable(),
+  modelIds: z.array(z.string().min(1)),
+})
+
+const versionSchema = z.object({
+  versionId: z.string().min(1),
+  modelId: z.string().min(1),
+  versionNumber: z.number().int().positive(),
+  name: z.string().min(1).nullable(),
+  thumbnailUrl: z.string().min(1).nullable(),
+  savedAt: z.string().min(1),
+})
+
+const versionDetailSchema = versionSchema.extend({
+  characterId: z.string().min(1),
+  modelEntryUrl: z.string().min(1),
+  packageUrl: z.string().min(1),
+})
+
+const characterListSchema = z.object({ items: z.array(characterSchema) })
+const versionListSchema = z.object({ items: z.array(versionSchema) })
+
+export type Live2dVersionDetail = Live2dLibraryVersion & {
+  characterId: string
+  modelEntryUrl: string
+  packageUrl: string
+}
+
+export const listLive2dCharacters = (projectId: string, signal?: AbortSignal) =>
+  authorizedRequest(
+    (authorization) => gateway.get(`${live2dProjectPath(projectId)}/live2d/characters`, {
+      signal,
+      headers: { Authorization: authorization },
+    }),
+    characterListSchema,
+  ).then((result) => result.data.items satisfies Live2dLibraryCharacter[])
+
+export const listLive2dVersions = (projectId: string, characterId: string, signal?: AbortSignal) =>
+  authorizedRequest(
+    (authorization) => gateway.get(
+      `${live2dProjectPath(projectId)}/live2d/characters/${encodeURIComponent(characterId)}/versions`,
+      { signal, headers: { Authorization: authorization } },
+    ),
+    versionListSchema,
+  ).then((result) => result.data.items satisfies Live2dLibraryVersion[])
+
+export const getLive2dVersion = (projectId: string, versionId: string, signal?: AbortSignal) =>
+  authorizedRequest(
+    (authorization) => gateway.get(
+      `${live2dProjectPath(projectId)}/live2d/versions/${encodeURIComponent(versionId)}`,
+      { signal, headers: { Authorization: authorization } },
+    ),
+    versionDetailSchema,
+  ).then((result) => result.data satisfies Live2dVersionDetail)
+
+const apiPath = (url: string) => {
+  const resource = new URL(url, window.location.origin)
+  if (resource.origin !== window.location.origin) return null
+  const path = `${resource.pathname}${resource.search}`
+  return path.startsWith('/api/') ? path.slice(4) : path
+}
+
+export const fetchLive2dPackage = async (url: string, signal: AbortSignal) => {
+  const path = apiPath(url)
+  const needsAuth = modelRequestNeedsAuth(url, window.location.origin)
+  try {
+    if (path === null) {
+      const response = await fetch(url, { signal })
+      if (!response.ok) throw new AuthError('模型包下载失败', response.status, 'UNKNOWN')
+      return await response.blob()
+    }
+    const token = useSession.getState().token
+    if (needsAuth && !token) throw new AuthError('请先登录', 401, 'UNAUTHENTICATED')
+    const response = await gateway.get<Blob>(path, {
+      signal,
+      responseType: 'blob',
+      timeout: 120_000,
+      headers: needsAuth && token ? { Authorization: `Bearer ${token}` } : {},
+    })
+    return response.data
+  } catch (error) {
+    if (error instanceof AuthError) throw error
+    if (axios.isAxiosError(error)) {
+      const status = error.response?.status ?? 0
+      if (status === 401) useSession.getState().expire(useSession.getState().revision)
+      throw new AuthError(status === 404 ? '模型包不存在或已过期' : '模型包下载失败', status, status === 404 ? 'NOT_FOUND' : 'UNKNOWN')
+    }
+    throw new AuthError('模型包下载失败', 0, 'NETWORK_ERROR')
+  }
 }
 
 export const getLive2dTask = (projectId: string, taskId: string, signal?: AbortSignal) =>

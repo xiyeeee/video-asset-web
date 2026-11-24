@@ -29,6 +29,9 @@ cp -R ../video-asset-ai/outputs/live2d-eval/attempts/alternative/adapter-runtime
 4. 任务成功后，中间画布加载 `result.modelEntryUrl`。相对的 moc、贴图和动作文件都能显示。失败原因出现在右侧，预览加载失败出现在画布上，两者分开。
 5. 模型加载后，只显示它实际具备的眨眼、张嘴、转头按钮，点击后能看到对应变化。
 6. 可以用示例模型或导入目录单独验证第 5 步。
+7. 顶部可切换「我的模型」。有历史时默认打开第一个角色的最新版本；生成成功并显示「已保存」后，「查看模型」定位到刚保存的版本。预览失败只重试当前版本，下载使用同一个版本。
+
+历史列表调用 `GET /api/projects/{projectId}/live2d/characters`、`.../characters/{characterId}/versions` 和 `.../versions/{versionId}`。Java 的 `docs/frontend-live2d-api.md` 目前还没有这三条，接口未接入时页面显示加载失败，不会把空列表当成没有模型。
 
 ## 当前验证
 

@@ -1,10 +1,16 @@
 import assert from 'node:assert/strict'
 import {
   availableMotionTests,
+  characterForModel,
   indexModelDirectory,
+  isCurrentLive2dRequest,
   isLive2dSettled,
   live2dEventsPath,
+  live2dModelSaved,
+  live2dPackageName,
   live2dTaskBody,
+  orderLive2dVersions,
+  versionForSelection,
   modelRequestNeedsAuth,
   motionTarget,
   resolveModelReference,
@@ -79,5 +85,29 @@ assert.equal(indexed.entryName, 'model.model3.json')
 assert.equal(indexed.files.get('model.moc3'), moc)
 const extra = { name: 'other.model3.json', webkitRelativePath: 'Sample/other.model3.json' }
 assert.throws(() => indexModelDirectory([entry, extra]))
+
+const characters = [
+  { characterId: '7', name: '许宁', avatarUrl: null, modelIds: ['419', '420'] },
+  { characterId: '8', name: '林夏', avatarUrl: null, modelIds: ['500'] },
+]
+assert.equal(characterForModel(characters, '420').character?.characterId, '7')
+assert.equal(characterForModel(characters, '420').matched, true)
+assert.equal(characterForModel(characters, 'missing').character?.characterId, '7')
+assert.equal(characterForModel(characters, null).matched, false)
+assert.equal(characterForModel([], '419').character, null)
+
+const versions = [
+  { versionId: 'v1', modelId: '419', versionNumber: 1, name: '初版', thumbnailUrl: null, savedAt: '2026-11-24T01:00:00Z' },
+  { versionId: 'v2', modelId: '420', versionNumber: 2, name: null, thumbnailUrl: null, savedAt: '2026-11-24T02:00:00Z' },
+]
+assert.deepEqual(orderLive2dVersions(versions).map((item) => item.versionNumber), [2, 1])
+assert.equal(versionForSelection(versions, '419')?.versionId, 'v1')
+assert.equal(versionForSelection(versions, null)?.versionId, 'v2')
+assert.equal(live2dModelSaved('SUCCEEDED', { modelId: '419' }), true)
+assert.equal(live2dModelSaved('RUNNING', null), false)
+assert.equal(live2dModelSaved('FAILED', null), false)
+assert.equal(isCurrentLive2dRequest(2, 2), true)
+assert.equal(isCurrentLive2dRequest(2, 3), false)
+assert.equal(live2dPackageName(2, '许宁/夜'), 'V2-许宁 夜.zip')
 
 console.log('live2d contract ok')

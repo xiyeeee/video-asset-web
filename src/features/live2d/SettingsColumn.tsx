@@ -13,6 +13,8 @@ export function SettingsColumn({
   onGenerate,
   onImport,
   onSample,
+  saved = false,
+  onViewSaved,
 }: {
   modelName: string
   onModelName: (value: string) => void
@@ -24,6 +26,8 @@ export function SettingsColumn({
   onGenerate: () => void
   onImport: (files: File[]) => void
   onSample: () => void
+  saved?: boolean
+  onViewSaved?: () => void
 }) {
   const stageText = live2dStageLabel(stage)
   const statusText = status ? live2dStatusLabel(status) : ''
@@ -54,6 +58,14 @@ export function SettingsColumn({
         <p className="text-sm text-violet-100">
           {statusText}{stageText ? ` · ${stageText}` : ''}
         </p>
+      ) : null}
+      {saved ? (
+        <div className="rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100">
+          <p>已保存</p>
+          {onViewSaved ? (
+            <Button type="button" variant="link" className="h-auto px-0 text-emerald-100" onClick={onViewSaved}>查看模型</Button>
+          ) : null}
+        </div>
       ) : null}
       {failure ? <p className="text-sm text-rose-300">{failure}</p> : null}
       {notice ? <p className="text-sm text-rose-300">{notice}</p> : null}

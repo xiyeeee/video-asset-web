@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { ImageIcon, PersonStanding } from 'lucide-react'
 import { EmptyState, PageSkeleton } from '@/components/common/EmptyState'
 import { Button } from '@/components/ui/button'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Select,
   SelectContent,
@@ -14,13 +15,14 @@ import { AuthError, isCancelled } from '@/features/auth/auth-api'
 import { useMediaTarget } from '@/features/analysis/use-media-target'
 import { CharacterSourceDialog } from '@/features/live2d/CharacterSourceDialog'
 import { Live2DViewport, type ModelPreview } from '@/features/live2d/Live2DViewport'
+import { ModelLibrary } from '@/features/live2d/ModelLibrary'
 import { ReferenceColumn } from '@/features/live2d/ReferenceColumn'
 import { SettingsColumn } from '@/features/live2d/SettingsColumn'
 import { useLive2dTask } from '@/features/live2d/use-live2d-task'
 import type { CharacterAsset } from '@/services/characters/api'
 import type { EpisodeSummary } from '@/services/episodes/api'
 import { live2dErrorMessage, live2dFailureText, uploadLive2dImage } from '@/services/live2d/api'
-import { SAMPLE_MODEL_URL, live2dImageIssue, live2dTaskBody, type Live2dSource } from '@/services/live2d/contract'
+import { SAMPLE_MODEL_URL, live2dImageIssue, live2dModelSaved, live2dTaskBody, type Live2dSource } from '@/services/live2d/contract'
 
 type ReferenceImage =
   | { kind: 'local'; file: File; previewUrl: string; uploadFileId: string | null }
@@ -67,6 +69,10 @@ function Live2DWorkbench({
   const [notice, setNotice] = useState('')
   const [preview, setPreview] = useState<ModelPreview | null>(null)
   const [preparing, setPreparing] = useState(false)
+  const [panel, setPanel] = useState<'generate' | 'library'>('generate')
+  const [libraryFocus, setLibraryFocus] = useState<string | null>(null)
+  const [libraryVisit, setLibraryVisit] = useState(0)
+  const keepLibraryFocus = useRef(false)
   const previewUrlRef = useRef('')
   const submitAbortRef = useRef<AbortController | null>(null)
   const busy = preparing || task.busy
@@ -143,9 +149,33 @@ function Live2DWorkbench({
   const failure = task.task?.status === 'FAILED'
     ? live2dFailureText(task.task.error?.code ?? null, task.task.error?.message ?? '')
     : task.error
+  const saved = live2dModelSaved(task.task?.status ?? null, task.task?.result ?? null)
+
+  const openPanel = (value: string) => {
+    if (value === 'library') {
+      if (!keepLibraryFocus.current) {
+        setLibraryFocus(null)
+        setLibraryVisit((current) => current + 1)
+      }
+      keepLibraryFocus.current = false
+      setPanel('library')
+      return
+    }
+    setPanel('generate')
+  }
+
+  const viewSaved = () => {
+    const modelId = task.task?.result?.modelId
+    if (!modelId) return
+    keepLibraryFocus.current = true
+    setLibraryFocus(modelId)
+    setLibraryVisit((current) => current + 1)
+    setPanel('library')
+  }
 
   return (
     <div className="flex flex-col gap-4 lg:h-[calc(100svh-7rem)] lg:min-h-0">
+      <Tabs value={panel} onValueChange={openPanel} className="min-h-0 flex-1 gap-4">
       <div className="flex flex-wrap items-center gap-3">
         <Select value={projectId} onValueChange={onProject}>
           <SelectTrigger className="w-full max-w-xs"><SelectValue /></SelectTrigger>
@@ -156,6 +186,18 @@ function Live2DWorkbench({
             {projects.map((project) => <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>)}
           </SelectContent>
         </Select>
+        <TabsList className="h-10">
+          <TabsTrigger value="generate">模型生成</TabsTrigger>
+          <TabsTrigger value="library">我的模型</TabsTrigger>
+        </TabsList>
+        <Button type="button" className="ml-auto" onClick={() => openPanel('generate')}>生成新模型</Button>
+      </div>
+      {panel === 'library' ? (
+        <ModelLibrary key={`${libraryVisit}:${libraryFocus ?? ''}`} projectId={projectId} focusModelId={libraryFocus} onCreate={() => openPanel('generate')} />
+      ) : null}
+      {panel === 'generate' ? (
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-3">
         <div className="flex min-w-0 flex-1 gap-2">
           <Button type="button" className="h-10 flex-1 max-w-xs"><ImageIcon />图片转 Live2D</Button>
           <Button type="button" variant="outline" className="h-10 flex-1 max-w-xs" disabled title="动作生成将在后续接入">
@@ -183,6 +225,8 @@ function Live2DWorkbench({
           stage={task.task?.stage ?? null}
           failure={failure}
           notice={notice}
+          saved={saved}
+          onViewSaved={viewSaved}
           onGenerate={() => void generate()}
           onImport={(files) => {
             setNotice('')
@@ -201,6 +245,9 @@ function Live2DWorkbench({
         onOpenChange={setPicking}
         onSelect={chooseAsset}
       />
+      </div>
+      ) : null}
+      </Tabs>
     </div>
   )
 }

@@ -69,7 +69,64 @@ const motionCatalog: { id: MotionTestId; label: string; parameters: string[] }[]
   { id: 'head', label: '转头', parameters: ['ParamAngleX'] },
 ]
 
+export type Live2dLibraryCharacter = {
+  characterId: string
+  name: string
+  avatarUrl: string | null
+  modelIds: readonly string[]
+}
+
+export type Live2dLibraryVersion = {
+  versionId: string
+  modelId: string
+  versionNumber: number
+  name: string | null
+  thumbnailUrl: string | null
+  savedAt: string
+}
+
 export const isLive2dSettled = (status: Live2dStatus) => status === 'SUCCEEDED' || status === 'FAILED'
+
+export const live2dModelSaved = (
+  status: Live2dStatus | null,
+  result: { modelId: string } | null,
+) => status === 'SUCCEEDED' && result !== null && result.modelId.length > 0
+
+export const orderLive2dVersions = (versions: readonly Live2dLibraryVersion[]) =>
+  versions.toSorted((left, right) => {
+    if (left.versionNumber !== right.versionNumber) return right.versionNumber - left.versionNumber
+    return right.savedAt.localeCompare(left.savedAt)
+  })
+
+export const characterForModel = (
+  characters: readonly Live2dLibraryCharacter[],
+  modelId: string | null,
+) => {
+  if (modelId) {
+    const matched = characters.find((item) => item.modelIds.includes(modelId))
+    if (matched) return { character: matched, matched: true }
+  }
+  return { character: characters[0] ?? null, matched: false }
+}
+
+export const versionForSelection = (
+  versions: readonly Live2dLibraryVersion[],
+  modelId: string | null,
+) => {
+  const ordered = orderLive2dVersions(versions)
+  if (modelId) {
+    const matched = ordered.find((item) => item.modelId === modelId)
+    if (matched) return matched
+  }
+  return ordered[0] ?? null
+}
+
+export const isCurrentLive2dRequest = (started: number, current: number) => started === current
+
+export const live2dPackageName = (versionNumber: number, name: string | null) => {
+  const label = (name ?? '').replace(/[\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim()
+  return `V${versionNumber}-${label || 'model'}.zip`
+}
 
 export const live2dStatusLabel = (status: Live2dStatus) => statusLabels[status]
 

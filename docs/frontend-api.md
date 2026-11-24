@@ -28,5 +28,8 @@
 | `POST /api/projects/{projectId}/live2d/tasks` | `{modelName, uploadFileId}` 或 `{modelName, sourceAssetId}`，两者只提交一个 |
 | `GET /api/projects/{projectId}/live2d/tasks/{taskId}` | 读取当前快照。成功时 `result.modelId` 与 `result.modelEntryUrl`。票据过期时用它换新入口 |
 | `WebSocket /api/projects/{projectId}/live2d/tasks/{taskId}/events` | 提交后的状态推送。子协议为 `video-asset.bearer` 和访问令牌。终态后关闭 |
+| `GET /api/projects/{projectId}/live2d/characters` | 有已保存模型的角色。`items[]` 含 `characterId`、`name`、`avatarUrl`、`modelIds` |
+| `GET /api/projects/{projectId}/live2d/characters/{characterId}/versions` | 该角色的历史版本。`items[]` 含 `versionId`、`modelId`、`versionNumber`、`name`、`thumbnailUrl`、`savedAt` |
+| `GET /api/projects/{projectId}/live2d/versions/{versionId}` | 版本详情，含 `modelEntryUrl` 和 `packageUrl`。预览票据过期时重新调用 |
 
-`modelEntryUrl` 指向 `.model3.json`。相对引用按该文件所在目录解析并沿用路径中的项目模型票据，无需附带 Bearer。票据 10 分钟过期，届时用 Bearer 重新查询任务获取新入口。任务进入 `SUCCEEDED` 或 `FAILED` 后关闭 WebSocket。
+`modelEntryUrl` 指向 `.model3.json`。相对引用按该文件所在目录解析并沿用路径中的项目模型票据，无需附带 Bearer。票据 10 分钟过期，届时重新获取版本详情或任务快照。任务进入 `SUCCEEDED` 或 `FAILED` 后关闭 WebSocket。`packageUrl` 指向该版本的模型包；本站业务接口带 Bearer，带票据的模型资源地址不带 Bearer。头像和缩略图地址需要浏览器能直接加载。Java 联调文档尚未列出这三条历史接口。
