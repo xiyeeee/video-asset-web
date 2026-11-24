@@ -6,7 +6,6 @@ import {
   motionTarget,
   type MotionTest,
   type MotionTestId,
-  type ModelSettingsJson,
 } from '@/services/live2d/contract'
 import { prepareDirectoryModel, prepareRemoteModel } from './prepare-model'
 
@@ -70,12 +69,14 @@ const previewErrorText = (error: unknown) => {
 
 export function Live2DViewport({ preview }: { preview: ModelPreview | null }) {
   const hostRef = useRef<HTMLDivElement>(null)
+  const centerRef = useRef<(() => void) | null>(null)
   const rangesRef = useRef<ParameterRange[]>([])
   const motionRef = useRef<MotionTest | null>(null)
   const [tests, setTests] = useState<MotionTest[]>([])
   const [active, setActive] = useState<MotionTestId | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [interactivePreview, setInteractivePreview] = useState<ModelPreview | null>(null)
 
   useEffect(() => {
     const host = hostRef.current
@@ -88,6 +89,7 @@ export function Live2DViewport({ preview }: { preview: ModelPreview | null }) {
     const controller = new AbortController()
     let disposed = false
     let application: import('pixi.js').Application | null = null
+    let resizeObserver: ResizeObserver | null = null
     const blobUrls: string[] = []
     const releaseBlobs = () => {
       for (const url of blobUrls) URL.revokeObjectURL(url)
@@ -110,33 +112,36 @@ export function Live2DViewport({ preview }: { preview: ModelPreview | null }) {
         return
       }
       const PIXI = await import('pixi.js')
-      const { Live2DModel } = await import('pixi-live2d-display/cubism4')
+      const { Cubism4ModelSettings, Live2DModel } = await import('pixi-live2d-display/cubism4')
+      if (disposed) return
+      const { json } = prepared
+      const { url } = json
+      if (typeof url !== 'string' || !Cubism4ModelSettings.isValidJSON(json)) {
+        throw new Error('模型描述不是可用的 .model3.json。')
+      }
+      const settings = new Cubism4ModelSettings({ ...json, url })
+      const resolveRelative = settings.resolveURL.bind(settings)
+      const preparedUrls = new Set(prepared.blobUrls)
+      // SDK 的相对路径解析会破坏 blob:http:// 中的冒号，已准备的地址直接使用。
+      settings.resolveURL = (path) => preparedUrls.has(path) ? path : resolveRelative(path)
       Live2DModel.registerTicker(PIXI.Ticker)
       const view = new PIXI.Application({
-        resizeTo: host,
+        width: host.clientWidth || 1,
+        height: host.clientHeight || 1,
         backgroundAlpha: 0,
         antialias: true,
         autoDensity: true,
         resolution: window.devicePixelRatio || 1,
       })
       application = view
-      host.appendChild(view.view as HTMLCanvasElement)
-      const model = await Live2DModel.from(prepared.json satisfies ModelSettingsJson, { autoInteract: false })
+      const canvas = view.view as HTMLCanvasElement
+      host.appendChild(canvas)
+      const model = await Live2DModel.from(settings, { autoInteract: false })
       if (disposed) {
         model.destroy()
         releaseBlobs()
         return
       }
-      const place = () => {
-        const width = view.renderer.width
-        const height = view.renderer.height
-        const scale = Math.min((width * 0.86) / model.width, (height * 0.86) / model.height)
-        model.scale.set(Number.isFinite(scale) && scale > 0 ? scale : 1)
-        model.x = (width - model.width) / 2
-        model.y = (height - model.height) / 2
-      }
-      place()
-      view.renderer.on('resize', place)
       view.stage.addChild(model)
       const core = model.internalModel.coreModel
       if (!isCubismCoreModel(core)) throw new Error('模型核心没有可测试的参数。')
@@ -157,6 +162,57 @@ export function Live2DViewport({ preview }: { preview: ModelPreview | null }) {
           core.setParameterValueById(parameterId, motionTarget(motion.id, range.min, range.max, range.fallback))
         }
       }, undefined, PIXI.UPDATE_PRIORITY.LOW)
+      const { width: modelWidth, height: modelHeight } = model.getLocalBounds()
+      const offset = { x: 0, y: 0 }
+      const place = () => model.position.set(
+        (view.screen.width - modelWidth * model.scale.x) / 2 + offset.x,
+        (view.screen.height - modelHeight * model.scale.y) / 2 + offset.y,
+      )
+      const fit = () => {
+        const width = host.clientWidth
+        const height = host.clientHeight
+        if (width === 0 || height === 0) return
+        // Pixi 的模型坐标按 CSS 像素计算，不能用高 DPI 下放大后的绘图缓冲区尺寸。
+        view.renderer.resize(width, height)
+        const scale = Math.min((width * 0.86) / modelWidth, (height * 0.86) / modelHeight)
+        model.scale.set(Number.isFinite(scale) && scale > 0 ? scale : 1)
+        place()
+      }
+      fit()
+      resizeObserver = new ResizeObserver(fit)
+      resizeObserver.observe(host)
+      centerRef.current = () => {
+        offset.x = 0
+        offset.y = 0
+        place()
+      }
+
+      let drag: { id: number; x: number; y: number } | null = null
+      const listeners = { signal: controller.signal }
+      canvas.classList.add('block', 'touch-none', 'cursor-grab')
+      canvas.addEventListener('pointerdown', (event) => {
+        if (drag || event.button !== 0) return
+        canvas.setPointerCapture(event.pointerId)
+        drag = { id: event.pointerId, x: event.clientX, y: event.clientY }
+        canvas.classList.replace('cursor-grab', 'cursor-grabbing')
+      }, listeners)
+      canvas.addEventListener('pointermove', (event) => {
+        if (drag?.id !== event.pointerId) return
+        offset.x += event.clientX - drag.x
+        offset.y += event.clientY - drag.y
+        drag.x = event.clientX
+        drag.y = event.clientY
+        place()
+      }, listeners)
+      const finishDrag = (event: PointerEvent) => {
+        if (drag?.id !== event.pointerId) return
+        drag = null
+        canvas.classList.replace('cursor-grabbing', 'cursor-grab')
+      }
+      canvas.addEventListener('pointerup', finishDrag, listeners)
+      canvas.addEventListener('pointercancel', finishDrag, listeners)
+      canvas.addEventListener('lostpointercapture', finishDrag, listeners)
+      setInteractivePreview(preview)
       setLoading(false)
     }
 
@@ -169,6 +225,8 @@ export function Live2DViewport({ preview }: { preview: ModelPreview | null }) {
     return () => {
       disposed = true
       controller.abort()
+      resizeObserver?.disconnect()
+      centerRef.current = null
       motionRef.current = null
       application?.destroy(true, { children: true, texture: true, baseTexture: true })
       releaseBlobs()
@@ -193,6 +251,11 @@ export function Live2DViewport({ preview }: { preview: ModelPreview | null }) {
         <div ref={hostRef} className="absolute inset-0" />
         {preview?.sample ? (
           <span className="absolute top-3 left-3 rounded-full bg-violet-500/80 px-2 py-0.5 text-xs text-white">示例模型</span>
+        ) : null}
+        {preview && interactivePreview === preview && !loading && !error ? (
+          <Button type="button" size="sm" variant="outline" className="absolute top-3 right-3" onClick={() => centerRef.current?.()}>
+            居中
+          </Button>
         ) : null}
         {!preview && !loading ? (
           <div className="absolute inset-0 grid place-items-center px-6 text-center text-sm text-muted-foreground">

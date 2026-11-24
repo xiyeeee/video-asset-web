@@ -71,5 +71,9 @@ export function useLive2dTask(projectId: string | undefined) {
   }
 
   const busy = submitting || (task !== null && !isLive2dSettled(task.status))
-  return { task, error, submitting, busy, submit }
+  const clear = () => {
+    setTask(null)
+    setError('')
+  }
+  return { task, error, submitting, busy, submit, clear }
 }

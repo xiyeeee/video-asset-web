@@ -66,15 +66,24 @@ function Live2DWorkbench({
   const [picking, setPicking] = useState(false)
   const [notice, setNotice] = useState('')
   const [preview, setPreview] = useState<ModelPreview | null>(null)
+  const [preparing, setPreparing] = useState(false)
   const previewUrlRef = useRef('')
   const submitAbortRef = useRef<AbortController | null>(null)
+  const busy = preparing || task.busy
 
   useEffect(() => () => {
     submitAbortRef.current?.abort()
     if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
   }, [])
 
+  const clearResult = () => {
+    setPreview(null)
+    setNotice('')
+    task.clear()
+  }
+
   const replaceLocal = (file: File) => {
+    if (busy || submitAbortRef.current) return
     const issue = live2dImageIssue(file)
     if (issue) {
       setNotice(issue)
@@ -84,10 +93,11 @@ function Live2DWorkbench({
     const previewUrl = URL.createObjectURL(file)
     previewUrlRef.current = previewUrl
     setReference({ kind: 'local', file, previewUrl, uploadFileId: null })
-    setNotice('')
+    clearResult()
   }
 
   const chooseAsset = (asset: CharacterAsset, episode: EpisodeSummary) => {
+    if (busy || submitAbortRef.current) return
     if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
     previewUrlRef.current = ''
     setReference({
@@ -96,20 +106,22 @@ function Live2DWorkbench({
       previewUrl: asset.url,
       label: `第 ${episode.episodeNumber} 集 · 人物 ${asset.frameCharacterNumber}`,
     })
-    setNotice('')
+    clearResult()
   }
 
   const generate = async () => {
-    if (!projectId || task.busy) return
+    if (!projectId || busy || submitAbortRef.current) return
     const startedProjectId = projectId
     const controller = new AbortController()
-    submitAbortRef.current?.abort()
     submitAbortRef.current = controller
-    setNotice('')
+    setPreparing(true)
+    clearResult()
     try {
       const source = await resolveSource(startedProjectId, reference, controller.signal, (uploadFileId) => {
         setReference((current) => current?.kind === 'local' ? { ...current, uploadFileId } : current)
       })
+      if (controller.signal.aborted) return
+      setPreparing(false)
       const finished = await task.submit(live2dTaskBody(startedProjectId, modelName, source))
       if (finished?.status === 'SUCCEEDED' && finished.result) {
         setPreview({ id: finished.taskId, kind: 'url', url: finished.result.modelEntryUrl, sample: false })
@@ -122,6 +134,9 @@ function Live2DWorkbench({
         return
       }
       setNotice(error instanceof Error && error.message ? error.message : '暂时无法完成操作，请稍后重试。')
+    } finally {
+      submitAbortRef.current = null
+      if (!controller.signal.aborted) setPreparing(false)
     }
   }
 
@@ -152,7 +167,7 @@ function Live2DWorkbench({
         <ReferenceColumn
           previewUrl={reference?.previewUrl ?? ''}
           label={reference?.kind === 'asset' ? reference.label : reference?.kind === 'local' ? reference.file.name : ''}
-          disabled={task.busy}
+          disabled={busy}
           onUpload={replaceLocal}
           onChooseAsset={() => setPicking(true)}
         />
@@ -163,7 +178,7 @@ function Live2DWorkbench({
         <SettingsColumn
           modelName={modelName}
           onModelName={setModelName}
-          busy={task.busy}
+          busy={busy}
           status={task.task?.status ?? null}
           stage={task.task?.stage ?? null}
           failure={failure}
