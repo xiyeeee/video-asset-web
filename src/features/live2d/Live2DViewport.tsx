@@ -41,6 +41,8 @@ export type Live2DViewportHandle = {
   frameElement: () => HTMLDivElement | null
 }
 
+export type ComboSample = (timeMs: number) => readonly { id: string; value: number }[]
+
 const defaultEmptyText = '生成成功后，这里会渲染实际的 Live2D 模型。也可以先导入模型或加载示例。'
 
 type ParameterRange = { id: string; min: number; max: number; fallback: number }
@@ -78,8 +80,21 @@ export const Live2DViewport = forwardRef<Live2DViewportHandle, {
   preview: ModelPreview | null
   emptyText?: string
   showCenter?: boolean
+  showTests?: boolean
+  sampleRef?: { current: ComboSample | null }
+  timeRef?: { current: number }
+  onModelState?: (ready: boolean) => void
   onRetry?: () => void
-}>(function Live2DViewport({ preview, emptyText = defaultEmptyText, showCenter = true, onRetry }, ref) {
+}>(function Live2DViewport({
+  preview,
+  emptyText = defaultEmptyText,
+  showCenter = true,
+  showTests = true,
+  sampleRef,
+  timeRef,
+  onModelState,
+  onRetry,
+}, ref) {
   const hostRef = useRef<HTMLDivElement>(null)
   const frameRef = useRef<HTMLDivElement>(null)
   const centerRef = useRef<(() => void) | null>(null)
@@ -90,6 +105,8 @@ export const Live2DViewport = forwardRef<Live2DViewportHandle, {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [interactivePreview, setInteractivePreview] = useState<ModelPreview | null>(null)
+  const onModelStateRef = useRef(onModelState)
+  onModelStateRef.current = onModelState
 
   useImperativeHandle(ref, () => ({
     resetView: () => centerRef.current?.(),
@@ -102,6 +119,7 @@ export const Live2DViewport = forwardRef<Live2DViewportHandle, {
       setTests([])
       setError('')
       setLoading(false)
+      onModelStateRef.current?.(false)
       return
     }
     const controller = new AbortController()
@@ -117,6 +135,7 @@ export const Live2DViewport = forwardRef<Live2DViewportHandle, {
     setError('')
     setTests([])
     setActive(null)
+    onModelStateRef.current?.(false)
 
     const run = async () => {
       await loadCubismCore()
@@ -172,6 +191,16 @@ export const Live2DViewport = forwardRef<Live2DViewportHandle, {
       }))
       setTests(availableMotionTests(parameters.ids))
       view.ticker.add(() => {
+        const sample = sampleRef?.current
+        if (sample) {
+          for (const range of rangesRef.current) {
+            core.setParameterValueById(range.id, range.fallback, 1)
+          }
+          for (const point of sample(timeRef?.current ?? 0)) {
+            core.setParameterValueById(point.id, point.value, 1)
+          }
+          return
+        }
         const motion = motionRef.current
         if (!motion) return
         for (const parameterId of motion.parameters) {
@@ -232,11 +261,13 @@ export const Live2DViewport = forwardRef<Live2DViewportHandle, {
       canvas.addEventListener('lostpointercapture', finishDrag, listeners)
       setInteractivePreview(preview)
       setLoading(false)
+      onModelStateRef.current?.(true)
     }
 
     void run().catch((caught: unknown) => {
       if (disposed || controller.signal.aborted) return
       setLoading(false)
+      onModelStateRef.current?.(false)
       setError(previewErrorText(caught))
     })
 
@@ -246,11 +277,12 @@ export const Live2DViewport = forwardRef<Live2DViewportHandle, {
       resizeObserver?.disconnect()
       centerRef.current = null
       motionRef.current = null
+      onModelStateRef.current?.(false)
       application?.destroy(true, { children: true, texture: true, baseTexture: true })
       releaseBlobs()
       host.replaceChildren()
     }
-  }, [preview])
+  }, [preview, sampleRef, timeRef])
 
   const play = (test: MotionTest) => {
     motionRef.current = test
@@ -288,7 +320,7 @@ export const Live2DViewport = forwardRef<Live2DViewportHandle, {
           </div>
         ) : null}
       </div>
-      <div className="flex flex-wrap gap-2">
+      {showTests ? <div className="flex flex-wrap gap-2">
         {tests.map((test) => {
           const Icon = iconFor(test.id)
           return (
@@ -298,7 +330,7 @@ export const Live2DViewport = forwardRef<Live2DViewportHandle, {
             </Button>
           )
         })}
-      </div>
+      </div> : null}
     </div>
   )
 })

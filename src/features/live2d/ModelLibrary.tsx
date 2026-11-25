@@ -41,10 +41,14 @@ export function ModelLibrary({
   projectId,
   focus,
   onCreate,
+  onCompose,
+  onSelection,
 }: {
   projectId: string
   focus: Live2dHistoryFocus | null
   onCreate: () => void
+  onCompose?: (focus: Live2dHistoryFocus) => void
+  onSelection?: (focus: Live2dHistoryFocus) => void
 }) {
   const [characters, setCharacters] = useState<Live2dLibraryCharacter[]>([])
   const [characterId, setCharacterId] = useState<string | null>(null)
@@ -124,6 +128,7 @@ export function ModelLibrary({
         setDownloadError('')
         setVersionId(picked?.versionId ?? null)
         setVersionStatus('ready')
+        if (picked) onSelection?.({ characterId, versionId: picked.versionId })
         if (preferredVersionId && picked?.versionId !== preferredVersionId) {
           setNotice('没有在历史列表里找到刚保存的版本，已打开最新记录。')
         }
@@ -135,7 +140,7 @@ export function ModelLibrary({
         setVersionError(libraryMessage(error, '历史版本加载失败。'))
       })
     return () => controller.abort()
-  }, [projectId, characterId, preferredVersionId, versionAttempt])
+  }, [projectId, characterId, preferredVersionId, versionAttempt, onSelection])
 
   useEffect(() => {
     downloadAbortRef.current?.abort()
@@ -183,6 +188,7 @@ export function ModelLibrary({
     setDetailError('')
     setDownloadError('')
     setVersionId(nextVersionId)
+    if (characterId) onSelection?.({ characterId, versionId: nextVersionId })
   }
 
   const openCharacterAction = (kind: 'rename' | 'delete', character: Live2dLibraryCharacter) => {
@@ -398,6 +404,11 @@ export function ModelLibrary({
             <Button type="button" size="sm" disabled={!detail || detail.versionId !== versionId || downloading} onClick={() => void downloadPackage()}>
               <Download />{downloading ? '正在下载' : '下载模型包'}
             </Button>
+            {onCompose ? (
+              <Button type="button" size="sm" variant="outline" disabled={!characterId || !versionId} onClick={() => {
+                if (characterId && versionId) onCompose({ characterId, versionId })
+              }}>组合动作</Button>
+            ) : null}
           </div>
         </div>
         {detailError ? (

@@ -16,6 +16,7 @@ import { useMediaTarget } from '@/features/analysis/use-media-target'
 import { CharacterSourceDialog } from '@/features/live2d/CharacterSourceDialog'
 import { Live2DViewport, type ModelPreview } from '@/features/live2d/Live2DViewport'
 import { ModelLibrary } from '@/features/live2d/ModelLibrary'
+import { MotionLibrary, type MotionEntry } from '@/features/live2d/MotionLibrary'
 import { ReferenceColumn } from '@/features/live2d/ReferenceColumn'
 import { SettingsColumn } from '@/features/live2d/SettingsColumn'
 import { useLive2dTask } from '@/features/live2d/use-live2d-task'
@@ -69,10 +70,14 @@ function Live2DWorkbench({
   const [notice, setNotice] = useState('')
   const [preview, setPreview] = useState<ModelPreview | null>(null)
   const [preparing, setPreparing] = useState(false)
-  const [panel, setPanel] = useState<'generate' | 'library'>('generate')
+  const [panel, setPanel] = useState<'generate' | 'library' | 'motions'>('generate')
   const [libraryFocus, setLibraryFocus] = useState<Live2dHistoryFocus | null>(null)
   const [libraryVisit, setLibraryVisit] = useState(0)
+  const [librarySelection, setLibrarySelection] = useState<Live2dHistoryFocus | null>(null)
+  const [motionEntry, setMotionEntry] = useState<MotionEntry>({ kind: 'list', focus: null })
+  const [motionVisit, setMotionVisit] = useState(0)
   const keepLibraryFocus = useRef(false)
+  const motionDirtyRef = useRef(false)
   const previewUrlRef = useRef('')
   const submitAbortRef = useRef<AbortController | null>(null)
   const busy = preparing || task.busy
@@ -153,7 +158,15 @@ function Live2DWorkbench({
       : task.error
   const saved = live2dModelSaved(task.task)
 
+  const leaveMotions = () => {
+    if (panel === 'motions' && motionDirtyRef.current && !window.confirm('组合还有未保存的修改，确定离开吗？')) return false
+    motionDirtyRef.current = false
+    return true
+  }
+
   const openPanel = (value: string) => {
+    if (value === panel) return
+    if (!leaveMotions()) return
     if (value === 'library') {
       if (!keepLibraryFocus.current) {
         setLibraryFocus(null)
@@ -163,7 +176,21 @@ function Live2DWorkbench({
       setPanel('library')
       return
     }
+    if (value === 'motions') {
+      setMotionEntry({ kind: 'list', focus: librarySelection })
+      setMotionVisit((current) => current + 1)
+      setPanel('motions')
+      return
+    }
     setPanel('generate')
+  }
+
+  const openCombo = (focus: Live2dHistoryFocus) => {
+    if (!leaveMotions()) return
+    setLibrarySelection(focus)
+    setMotionEntry({ kind: 'new', focus })
+    setMotionVisit((current) => current + 1)
+    setPanel('motions')
   }
 
   const viewSaved = () => {
@@ -179,7 +206,10 @@ function Live2DWorkbench({
     <div className="flex flex-col gap-4 lg:h-[calc(100svh-7rem)] lg:min-h-0">
       <Tabs value={panel} onValueChange={openPanel} className="min-h-0 flex-1 gap-4">
       <div className="flex flex-wrap items-center gap-3">
-        <Select value={projectId} onValueChange={onProject}>
+        <Select value={projectId} onValueChange={(value) => {
+          if (!leaveMotions()) return
+          onProject(value)
+        }}>
           <SelectTrigger className="w-full max-w-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
             {projectName && !projects.some((item) => item.id === projectId) ? (
@@ -191,11 +221,12 @@ function Live2DWorkbench({
         <TabsList className="h-10">
           <TabsTrigger value="generate">模型生成</TabsTrigger>
           <TabsTrigger value="library">我的模型</TabsTrigger>
+          <TabsTrigger value="motions">动作库</TabsTrigger>
         </TabsList>
-        <Button type="button" className="ml-auto" onClick={() => openPanel('generate')}>生成新模型</Button>
+        {panel === 'motions' ? null : <Button type="button" className="ml-auto" onClick={() => openPanel('generate')}>生成新模型</Button>}
       </div>
       {panel === 'library' ? (
-        <ModelLibrary key={`${libraryVisit}:${libraryFocus?.characterId ?? ''}:${libraryFocus?.versionId ?? ''}`} projectId={projectId} focus={libraryFocus} onCreate={() => openPanel('generate')} />
+        <ModelLibrary key={`${libraryVisit}:${libraryFocus?.characterId ?? ''}:${libraryFocus?.versionId ?? ''}`} projectId={projectId} focus={libraryFocus} onCreate={() => openPanel('generate')} onCompose={openCombo} onSelection={setLibrarySelection} />
       ) : null}
       {panel === 'generate' ? (
       <div className="flex min-h-0 flex-1 flex-col gap-4">
@@ -248,6 +279,9 @@ function Live2DWorkbench({
         onSelect={chooseAsset}
       />
       </div>
+      ) : null}
+      {panel === 'motions' ? (
+        <MotionLibrary key={motionVisit} projectId={projectId} entry={motionEntry} dirtyRef={motionDirtyRef} />
       ) : null}
       </Tabs>
     </div>

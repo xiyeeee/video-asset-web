@@ -30,6 +30,7 @@ cp -R ../video-asset-ai/outputs/live2d-eval/attempts/alternative/adapter-runtime
 5. 模型加载后，只显示它实际具备的眨眼、张嘴、转头按钮，点击后能看到对应变化。
 6. 可以用示例模型或导入目录单独验证第 5 步。
 7. 顶部可切换「我的模型」。有历史时默认打开第一个角色的最新版本；保存状态为 `SAVED` 后才显示「已保存」，「查看模型」用 `result.characterId` 和 `result.versionId` 定位。预览失败只重试当前版本，下载使用同一个版本。
+8. 「动作库」里切换「单个动作 / 组合动作」。组合动作可新建、打开和播放。编辑页用四条轨道排列片段，播放头、模型和台词音频使用同一个时钟。从「我的模型」进入时带上当前版本；打开已保存组合时恢复它绑定的版本，之后不能改版本。动作片段时间重叠时可以预览，编译状态为冲突，错开后才能保存。
 
 历史列表调用 `GET /api/projects/{projectId}/live2d/characters`、`.../characters/{characterId}/versions` 和 `.../characters/{characterId}/versions/{versionId}`，分页字段为 `page`、`size`、`total`。下载走 `.../versions/{versionId}/download`。接口失败时页面显示加载失败，不会把空列表当成没有模型。
 

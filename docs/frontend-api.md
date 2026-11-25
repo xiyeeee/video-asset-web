@@ -32,5 +32,11 @@
 | `GET /api/projects/{projectId}/live2d/characters/{characterId}/versions?page=&size=` | 该角色的历史版本。`items[]` 含 `versionId`、`versionNumber`、`modelName`、`savedAt`、`status`、`thumbnailUrl` |
 | `GET /api/projects/{projectId}/live2d/characters/{characterId}/versions/{versionId}` | 版本详情。`version` 为版本摘要，另有 `modelEntryUrl`、`previewExpiresInSeconds`、`downloadUrl`。预览票据过期时重新调用 |
 | `GET /api/projects/{projectId}/live2d/characters/{characterId}/versions/{versionId}/download` | 带 Bearer 下载 ZIP。文件名取 `Content-Disposition` |
+| `GET /api/projects/{projectId}/live2d/combo-motions/catalog?modelVersionId=&page=&size=` | 当前模型的动作和台词。动作含 `sourceId`、`group`、`durationMs`、`resourceUrl`；台词分页返回 |
+| `POST /api/projects/{projectId}/live2d/combo-motions/compile` | 编译当前草稿。同一 `requestId` 只对应同一时间轴。`status` 为 `READY` 或 `CONFLICT`，并返回 `compilationId`、`issues`、`missingCapabilities`、`modelEntryUrl`、`playbackManifest` |
+| `GET /api/projects/{projectId}/live2d/combo-motions?page=&size=` | 已保存组合。列表项主键是 `id`，另有 `modelVersionId`、`name`、`durationMs`、`status` |
+| `POST /api/projects/{projectId}/live2d/combo-motions` | 新建组合。请求体重复当前时间轴，并带本次编译的 `compilationId` 和另一个 `requestId` |
+| `GET/PUT /api/projects/{projectId}/live2d/combo-motions/{comboId}` | 读取或更新已保存组合。更新不能更换模型版本，请求体同样带 `compilationId` |
+| `POST /api/projects/{projectId}/live2d/combo-motions/save-requests/{requestId}/retry` | 保存失败后用同一次 `requestId` 重试 |
 
 `modelEntryUrl` 指向 `.model3.json`。相对引用按该文件所在目录解析并沿用路径中的项目模型票据，无需附带 Bearer。票据 10 分钟过期，届时重新获取版本详情。保存状态为 `SAVED` 后才显示「已保存」，并用 `result.characterId`、`result.versionId` 打开对应历史。头像和缩略图只用于当次展示。
