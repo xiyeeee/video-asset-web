@@ -204,7 +204,7 @@ function Live2DWorkbench({
 
   return (
     <div className="flex flex-col gap-4 lg:h-[calc(100svh-7rem)] lg:min-h-0">
-      <Tabs value={panel} onValueChange={openPanel} className="min-h-0 flex-1 gap-4">
+      <Tabs value={panel} onValueChange={openPanel} className="min-h-0 flex-1 gap-4 overflow-hidden">
       <div className="flex flex-wrap items-center gap-3">
         <Select value={projectId} onValueChange={(value) => {
           if (!leaveMotions()) return

@@ -78,7 +78,7 @@ export function ComboTimeline({
   }
 
   return (
-    <section className="rounded-2xl border border-white/10 bg-card p-3">
+    <section className="shrink-0 rounded-2xl border border-white/10 bg-card p-3">
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Button type="button" size="icon" aria-label={playing ? '暂停' : '播放'} onClick={onTogglePlay}>
           {playing ? <Pause /> : <Play />}

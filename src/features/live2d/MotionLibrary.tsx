@@ -53,8 +53,8 @@ export function MotionLibrary({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
         <Button type="button" variant={mode === 'single' ? 'default' : 'outline'} onClick={() => setMode('single')}>单个动作</Button>
         <Button type="button" variant={mode === 'combo' ? 'default' : 'outline'} onClick={() => setMode('combo')}>组合动作</Button>
       </div>

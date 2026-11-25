@@ -485,8 +485,8 @@ export function ComboEditor({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
         <Button type="button" size="icon" variant="outline" aria-label="返回组合列表" onClick={back}><ArrowLeft /></Button>
         {editingName ? (
           <Input
@@ -534,8 +534,8 @@ export function ComboEditor({
           </Button>
         </div>
       </div>
-      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[240px_minmax(0,1fr)]">
-        <section className="flex min-h-0 flex-col gap-3 rounded-2xl border border-white/10 bg-card p-3">
+      <div className="grid min-h-0 flex-1 gap-3 overflow-hidden lg:grid-cols-[240px_minmax(0,1fr)]">
+        <section className="flex min-h-0 flex-col gap-3 overflow-hidden rounded-2xl border border-white/10 bg-card p-3">
           <div className="relative">
             <Search className="absolute top-2 left-2 size-4 text-muted-foreground" />
             <Input aria-label="搜索动作" className="pl-8" placeholder="搜索动作..." value={query} onChange={(event) => setQuery(event.currentTarget.value)} />
@@ -556,7 +556,7 @@ export function ComboEditor({
             {visibleSources.length === 0 && !sourceError ? <p className="text-sm text-muted-foreground">没有匹配的动作。</p> : null}
           </div>
         </section>
-        <section className="flex min-h-0 flex-col gap-2 rounded-2xl border border-white/10 bg-card p-3">
+        <section className="flex min-h-0 flex-col gap-2 overflow-hidden rounded-2xl border border-white/10 bg-card p-3">
           <div className="flex items-center justify-between gap-2">
             <h2 className="font-medium">模型预览</h2>
             {compileMessage ? <span className="text-xs text-violet-100">{compileMessage}</span> : null}
@@ -569,6 +569,7 @@ export function ComboEditor({
             preview={modelPreview}
             showCenter={false}
             showTests={false}
+            fill
             emptyText="选择模型版本后，这里会显示组合预览。"
             sampleRef={sampleRef}
             timeRef={timeRef}
@@ -583,14 +584,14 @@ export function ComboEditor({
         </section>
       </div>
       {previewCurrent && preview && preview.missingCapabilities.length > 0 ? (
-        <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+        <div className="shrink-0 rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
           {preview.missingCapabilities.map((code) => (
             <p key={code}>{code === 'MOTION_DURATION_METADATA' ? '有动作缺少时长信息，时间轴上已标出。' : code}</p>
           ))}
         </div>
       ) : null}
       {issues.length > 0 ? (
-        <div className="rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-100">
+        <div className="shrink-0 rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-100">
           {issues.map((item) => (
             <p key={`${item.code}:${item.segmentIds.join(',')}`}>{item.message || item.code}</p>
           ))}
@@ -605,7 +606,7 @@ export function ComboEditor({
           ) : null}
         </div>
       ) : null}
-      {saveError && compileStatus !== 'error' ? <p className="text-sm text-rose-300">{saveError}</p> : null}
+      {saveError && compileStatus !== 'error' ? <p className="shrink-0 text-sm text-rose-300">{saveError}</p> : null}
       <ComboTimeline
         draft={draft}
         timeMs={timeMs}

@@ -81,6 +81,7 @@ export const Live2DViewport = forwardRef<Live2DViewportHandle, {
   emptyText?: string
   showCenter?: boolean
   showTests?: boolean
+  fill?: boolean
   sampleRef?: { current: ComboSample | null }
   timeRef?: { current: number }
   onModelState?: (ready: boolean) => void
@@ -90,6 +91,7 @@ export const Live2DViewport = forwardRef<Live2DViewportHandle, {
   emptyText = defaultEmptyText,
   showCenter = true,
   showTests = true,
+  fill = false,
   sampleRef,
   timeRef,
   onModelState,
@@ -297,7 +299,7 @@ export const Live2DViewport = forwardRef<Live2DViewportHandle, {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
-      <div ref={frameRef} className="relative min-h-64 flex-1 overflow-hidden rounded-xl border border-white/10 bg-[linear-gradient(45deg,#24304a_25%,transparent_25%),linear-gradient(-45deg,#24304a_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#24304a_75%),linear-gradient(-45deg,transparent_75%,#24304a_75%)] bg-[length:28px_28px] bg-[position:0_0,0_14px,14px_-14px,-14px_0] bg-[#12182c]">
+      <div ref={frameRef} className={`relative flex-1 overflow-hidden rounded-xl border border-white/10 bg-[linear-gradient(45deg,#24304a_25%,transparent_25%),linear-gradient(-45deg,#24304a_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#24304a_75%),linear-gradient(-45deg,transparent_75%,#24304a_75%)] bg-[length:28px_28px] bg-[position:0_0,0_14px,14px_-14px,-14px_0] bg-[#12182c] ${fill ? 'min-h-0' : 'min-h-64'}`}>
         <div ref={hostRef} className="absolute inset-0" />
         {preview?.sample ? (
           <span className="absolute top-3 left-3 rounded-full bg-violet-500/80 px-2 py-0.5 text-xs text-white">示例模型</span>
