@@ -32,7 +32,7 @@
 | `GET /api/projects/{projectId}/live2d/characters/{characterId}/versions?page=&size=` | 该角色的历史版本。`items[]` 含 `versionId`、`versionNumber`、`modelName`、`savedAt`、`status`、`thumbnailUrl` |
 | `GET /api/projects/{projectId}/live2d/characters/{characterId}/versions/{versionId}` | 版本详情。`version` 为版本摘要，另有 `modelEntryUrl`、`previewExpiresInSeconds`、`downloadUrl`。预览票据过期时重新调用 |
 | `GET /api/projects/{projectId}/live2d/characters/{characterId}/versions/{versionId}/download` | 带 Bearer 下载 ZIP。文件名取 `Content-Disposition` |
-| `GET /api/projects/{projectId}/live2d/combo-motions/catalog?modelVersionId=&page=&size=` | 当前模型的动作和台词。动作含 `sourceId`、`group`、`durationMs`、`resourceUrl`；台词分页返回 |
+| `GET /api/projects/{projectId}/live2d/combo-motions/catalog?modelVersionId=&page=&size=` | 当前模型的预设、动作和台词。预设含 `supported`、`parameterIds`、`missingParameterIds`；动作含 `sourceId`、`group`、`durationMs`；台词分页返回 |
 | `POST /api/projects/{projectId}/live2d/combo-motions/compile` | 编译当前草稿。同一 `requestId` 只对应同一时间轴。`status` 为 `READY` 或 `CONFLICT`，并返回 `compilationId`、`issues`、`missingCapabilities`、`modelEntryUrl`、`playbackManifest` |
 | `GET /api/projects/{projectId}/live2d/combo-motions?page=&size=` | 已保存组合。列表项主键是 `id`，另有 `modelVersionId`、`name`、`durationMs`、`status` |
 | `POST /api/projects/{projectId}/live2d/combo-motions` | 新建组合。请求体重复当前时间轴，并带本次编译的 `compilationId` 和另一个 `requestId` |

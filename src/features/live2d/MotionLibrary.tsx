@@ -16,12 +16,14 @@ export function MotionLibrary({
   projectId,
   entry,
   dirtyRef,
+  presentation = 'workbench',
 }: {
   projectId: string
   entry: MotionEntry
   dirtyRef: { current: boolean }
+  presentation?: 'workbench' | 'reactions'
 }) {
-  const [mode, setMode] = useState<'single' | 'combo'>('combo')
+  const [mode, setMode] = useState<'single' | 'combo'>(presentation === 'reactions' ? 'combo' : 'combo')
   const [editor, setEditor] = useState<MotionEntry>(entry)
   const [items, setItems] = useState<ComboSummary[]>([])
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -54,10 +56,12 @@ export function MotionLibrary({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
-      <div className="flex shrink-0 flex-wrap items-center gap-2">
-        <Button type="button" variant={mode === 'single' ? 'default' : 'outline'} onClick={() => setMode('single')}>单个动作</Button>
-        <Button type="button" variant={mode === 'combo' ? 'default' : 'outline'} onClick={() => setMode('combo')}>组合动作</Button>
-      </div>
+      {presentation === 'reactions' ? null : (
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <Button type="button" variant={mode === 'single' ? 'default' : 'outline'} onClick={() => setMode('single')}>单个动作</Button>
+          <Button type="button" variant={mode === 'combo' ? 'default' : 'outline'} onClick={() => setMode('combo')}>组合动作</Button>
+        </div>
+      )}
       {mode === 'single' ? (
         <div className="grid flex-1 place-items-center rounded-2xl border border-white/10 bg-card p-6 text-center">
           <div>

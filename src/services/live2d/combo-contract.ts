@@ -47,6 +47,7 @@ export type MotionSource = {
   durationMs: number | null
   group: string | null
   supported?: boolean
+  parameterIds?: readonly string[]
   missingParameterIds?: readonly string[]
 }
 

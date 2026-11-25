@@ -290,6 +290,7 @@ export const listComboCatalog = async (projectId: string, modelVersionId: string
         durationMs: null,
         group: item.presetId,
         supported: item.supported,
+        parameterIds: item.parameterIds,
         missingParameterIds: item.missingParameterIds,
       })))
       motionsRead = true

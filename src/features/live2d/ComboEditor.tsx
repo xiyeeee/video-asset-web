@@ -22,6 +22,7 @@ import {
   placeClip,
   removeClip,
   samplePlayback,
+  timelineDuration,
   type ComboDraft,
   type MotionSource,
   type PlaybackSegment,
@@ -560,6 +561,7 @@ export function ComboEditor({
           <div className="flex items-center justify-between gap-2">
             <h2 className="font-medium">模型预览</h2>
             {compileMessage ? <span className="text-xs text-violet-100">{compileMessage}</span> : null}
+            {previewCurrent ? <span className="text-xs text-muted-foreground">实际播放的是编译后的动作。拖到某一毫秒和从开头播到同一毫秒一致。</span> : null}
             {compileStatus === 'error' ? (
               <Button type="button" size="sm" variant="outline" onClick={() => setCompileStatus('pending')}>重新编译</Button>
             ) : null}
@@ -607,6 +609,38 @@ export function ComboEditor({
         </div>
       ) : null}
       {saveError && compileStatus !== 'error' ? <p className="shrink-0 text-sm text-rose-300">{saveError}</p> : null}
+      {draft.clips.some((clip) => clip.trackType === 'DIALOGUE') ? (
+        <p className="shrink-0 text-xs text-muted-foreground">台词会驱动嘴巴开合，片段结束后回到默认。和表情重叠时如果抢同一个参数，下面可以跳到冲突时间。</p>
+      ) : null}
+      {selectedClipId ? (
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">改用其他动作</span>
+          <Select onValueChange={(sourceId) => {
+            const source = sources.find((item) => item.sourceId === sourceId)
+            const current = draft.clips.find((clip) => clip.segmentId === selectedClipId)
+            if (!source || !current) return
+            const durationMs = source.durationMs === null ? current.durationMs : Math.min(current.durationMs, source.durationMs)
+            const clips = draft.clips.map((clip) => clip.segmentId === current.segmentId ? {
+              ...clip,
+              track: source.track,
+              trackType: source.trackType,
+              presetId: source.presetId ?? null,
+              sourceId: source.sourceId,
+              sourceVersionId: source.sourceVersionId,
+              label: source.name,
+              durationMs: Math.max(50, durationMs),
+            } : clip)
+            replaceDraft({ ...draft, clips, durationMs: timelineDuration(clips) })
+          }}>
+            <SelectTrigger className="w-56" aria-label="替代片段"><SelectValue placeholder="选择替代片段" /></SelectTrigger>
+            <SelectContent>
+              {sources.filter((item) => item.sourceId !== draft.clips.find((clip) => clip.segmentId === selectedClipId)?.sourceId).map((item) => (
+                <SelectItem key={item.sourceId} value={item.sourceId}>{item.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
       <ComboTimeline
         draft={draft}
         timeMs={timeMs}

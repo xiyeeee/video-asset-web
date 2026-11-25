@@ -8,6 +8,7 @@ import {
   ListTodo,
   Package,
   PanelLeft,
+  PersonStanding,
   ScrollText,
 } from 'lucide-react'
 import { motion } from 'motion/react'
@@ -34,6 +35,7 @@ const navigation = [
   { to: '/tasks', label: '任务中心', icon: ListTodo, end: false },
   { to: '/assets', label: '素材库', icon: Library, end: false },
   { to: '/live2d', label: 'Live2D 工作台', icon: Box, end: false },
+  { to: '/motions', label: '动作库', icon: PersonStanding, end: false },
   { to: '/story', label: '剧情脚本', icon: ScrollText, end: false },
   { to: '/export', label: '导出中心', icon: Package, end: false },
 ]
@@ -181,6 +183,7 @@ function titleFor(pathname: string, projectName?: string): { heading: string; de
     '/tasks': { heading: '任务中心', description: '查看素材提取进度，并在失败后重试' },
     '/assets': { heading: '素材库', description: '按集查看分镜、人物和其他提取结果' },
     '/live2d': { heading: 'Live2D 工作台', description: '选择角色图，生成并预览 Live2D 模型' },
+    '/motions': { heading: '动作库', description: '浏览基础动作，编辑并保存组合反应' },
     '/story': { heading: '剧情脚本', description: '修正角色、编辑台词并预览剧情 JSON' },
     '/export': { heading: '导出中心', description: '配置演示导出任务并下载元数据清单' },
   }

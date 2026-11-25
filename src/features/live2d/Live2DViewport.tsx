@@ -45,7 +45,7 @@ export type ComboSample = (timeMs: number) => readonly { id: string; value: numb
 
 const defaultEmptyText = '生成成功后，这里会渲染实际的 Live2D 模型。也可以先导入模型或加载示例。'
 
-type ParameterRange = { id: string; min: number; max: number; fallback: number }
+export type ParameterRange = { id: string; min: number; max: number; fallback: number }
 
 type CubismCoreModel = {
   getModel: () => {
@@ -85,6 +85,7 @@ export const Live2DViewport = forwardRef<Live2DViewportHandle, {
   sampleRef?: { current: ComboSample | null }
   timeRef?: { current: number }
   onModelState?: (ready: boolean) => void
+  onParameters?: (ranges: readonly ParameterRange[]) => void
   onRetry?: () => void
 }>(function Live2DViewport({
   preview,
@@ -95,6 +96,7 @@ export const Live2DViewport = forwardRef<Live2DViewportHandle, {
   sampleRef,
   timeRef,
   onModelState,
+  onParameters,
   onRetry,
 }, ref) {
   const hostRef = useRef<HTMLDivElement>(null)
@@ -108,7 +110,9 @@ export const Live2DViewport = forwardRef<Live2DViewportHandle, {
   const [loading, setLoading] = useState(false)
   const [interactivePreview, setInteractivePreview] = useState<ModelPreview | null>(null)
   const onModelStateRef = useRef(onModelState)
+  const onParametersRef = useRef(onParameters)
   onModelStateRef.current = onModelState
+  onParametersRef.current = onParameters
 
   useImperativeHandle(ref, () => ({
     resetView: () => centerRef.current?.(),
@@ -192,6 +196,9 @@ export const Live2DViewport = forwardRef<Live2DViewportHandle, {
         fallback: parameters.defaultValues[index] ?? 0,
       }))
       setTests(availableMotionTests(parameters.ids))
+      onParametersRef.current?.(rangesRef.current)
+      const motionManager = model.internalModel.motionManager
+      if (typeof motionManager.stopAllMotions === 'function') motionManager.stopAllMotions()
       view.ticker.add(() => {
         const sample = sampleRef?.current
         if (sample) {

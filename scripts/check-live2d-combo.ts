@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { catalogItems, filterCatalog } from '../src/services/live2d/motion-catalog.ts'
 import {
   acceptComboPreview,
   advanceComboClock,
@@ -158,5 +159,15 @@ assert.deepEqual(overlap, [smileClip.segmentId, nodClip.segmentId])
 assert.equal(trackForMotion('Smile', smile.sourceId), 'face')
 assert.equal(trackForMotion('Nod', nod.sourceId), 'head')
 assert.equal(trackForMotion('Mouth', speech.sourceId), 'mouth')
+
+const listed = catalogItems([
+  { sourceId: 'preset:smile', sourceVersionId: '419', name: '微笑', track: 'face', trackType: 'MOTION', presetId: 'smile', durationMs: null, group: 'smile', supported: false, parameterIds: ['ParamMouthForm'], missingParameterIds: ['ParamMouthForm'] },
+  { sourceId: 'preset:nod', sourceVersionId: '419', name: '点头', track: 'head', trackType: 'MOTION', presetId: 'nod', durationMs: null, group: 'nod', supported: true, parameterIds: ['ParamAngleY'], missingParameterIds: [] },
+])
+assert.equal(listed[0]?.compatibility, 'missing')
+assert.equal(listed[0]?.purpose, '表情')
+assert.equal(listed[1]?.compatibility, 'ready')
+assert.equal(filterCatalog(listed, { keyword: '点头', part: 'head', purpose: '头部', compatibility: 'ready' }).length, 1)
+assert.equal(filterCatalog(listed, { keyword: '', part: 'all', purpose: 'all', compatibility: 'missing' }).length, 1)
 
 console.log('live2d combo contract ok')

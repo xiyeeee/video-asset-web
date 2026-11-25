@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router'
 import { Download, Maximize2, Pencil, RotateCcw, Trash2 } from 'lucide-react'
 import { AuthError, isCancelled } from '@/features/auth/auth-api'
 import { Button } from '@/components/ui/button'
@@ -409,6 +410,13 @@ export function ModelLibrary({
                 if (characterId && versionId) onCompose({ characterId, versionId })
               }}>组合动作</Button>
             ) : null}
+            {versionId ? (
+              <Button type="button" size="sm" variant="outline" asChild>
+                <Link to={`/motions?project=${encodeURIComponent(projectId)}&version=${encodeURIComponent(versionId)}`}>从动作库选择</Link>
+              </Button>
+            ) : (
+              <Button type="button" size="sm" variant="outline" disabled>从动作库选择</Button>
+            )}
           </div>
         </div>
         {detailError ? (
